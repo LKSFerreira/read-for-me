@@ -1,8 +1,8 @@
 /**
- * Mini-Player Flutuante (In-Page) encapsulado dentro da ShadowRoot.
- * Suporta arraste via Pointer Events, controles Play/Pause/Stop/Anterior/Próxima,
- * seletor de velocidade em tempo real (0.75x a 2.0x), filtro de idioma, seletor de vozes
- * naturais com pt-BR/en-US no topo e painel de consentimento de privacidade.
+ * Mini-Player Flutuante Opcional (In-Page) encapsulado dentro da ShadowRoot.
+ * Suporta arraste fluido em qualquer área livre do container via Pointer Events no window,
+ * controles Play/Pause/Stop/Anterior/Próxima, seletor de velocidade, filtro de idioma,
+ * seletor de vozes com botão de prévia (preview) e opção de ocultar sem interromper a leitura.
  */
 (function inicializarMiniPlayerFlutuante(escopoGlobal) {
   escopoGlobal.ReadForMe = escopoGlobal.ReadForMe || {};
@@ -30,14 +30,17 @@
      * @param {function(): void} callbacks.aoVoltarSentenca
      * @param {function(): void} callbacks.aoAvancarSentenca
      * @param {function(number): void} callbacks.aoAlterarVelocidade
-     * @param {function(string): void} callbacks.aoAlterarVoz
-     * @param {function(string): void} callbacks.aoAlterarFiltroIdioma
+     * @param {function(string): void} [callbacks.aoAlterarVoz]
+     * @param {function(string): void} [callbacks.aoAlterarFiltroIdioma]
      * @param {function({x: number, y: number}): void} callbacks.aoSalvarPosicao
-     * @param {function(string): void} callbacks.aoDefinirModoPrivacidade
+     * @param {function(string): void} [callbacks.aoDefinirModoPrivacidade]
+     * @param {function(string): Promise<void>} [callbacks.aoPrevisualizarVoz]
+     * @param {function(): void} [callbacks.aoOcultarPlayerNaPagina]
+     * @param {function(): void} [callbacks.aoAbrirConfiguracoes]
      */
     constructor(raizShadow, callbacks) {
       this.raizShadow = raizShadow;
-      this.callbacks = callbacks;
+      this.callbacks = callbacks || {};
       this.catalogoVozes = [...CONSTANTES_SISTEMA.VOZES_NATURAIS_INTEGRADA_PADRAO];
       this.idiomaFiltroAtual = CONSTANTES_SISTEMA.VALORES_PADRAO.IDIOMA_FILTRO;
       this.vozSelecionadaAtual = CONSTANTES_SISTEMA.VALORES_PADRAO.VOZ_SELECIONADA;
@@ -52,10 +55,9 @@
       this.botaoProxima = null;
       this.botaoParar = null;
       this.seletorVelocidade = null;
-      this.seletorFiltroIdioma = null;
-      this.seletorVoz = null;
-      this.painelConsentimento = null;
-      this.botaoModoPrivacidade = null;
+      this.elementoValorVelocidade = null;
+      this.botaoOcultarPlayer = null;
+      this.botaoConfiguracoes = null;
 
       this.construirInterface();
     }
@@ -73,7 +75,7 @@
       container.setAttribute('aria-label', 'Reprodutor de leitura Read For Me');
 
       container.innerHTML = `
-        <header class="cabecalho-player" data-alca-arraste="true" title="Arraste para mover o player">
+        <header class="cabecalho-player" data-alca-arraste="true" title="Arraste em qualquer área livre para mover o player">
           <div class="bloco-marca-status">
             <span class="alca-arraste-icone" aria-hidden="true">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
@@ -88,27 +90,15 @@
             </span>
             <span class="contador-sentencas" data-elemento="contador-sentencas">Frase 1 de 1</span>
           </div>
-          <button type="button" class="botao-privacidade-modo" data-acao="revisar-privacidade" title="Alterar entre voz neural online e voz local">
-            Privacidade
-          </button>
-        </header>
-
-        <div class="painel-consentimento" data-elemento="painel-consentimento" hidden>
-          <p class="texto-consentimento">
-            Para sintetizar com vozes <strong>Microsoft Natural Online</strong>, o trecho selecionado é enviado ao serviço de fala da Microsoft. Você também pode usar apenas a voz local do navegador.
-          </p>
-          <div class="acoes-consentimento">
-            <button type="button" class="botao-consentimento primario" data-consentimento="REMOTO_AUTORIZADO">
-              Usar voz natural
+          <div class="acoes-cabecalho-player">
+            <button type="button" class="botao-acao-cabecalho" data-acao="ocultar-player" title="Ocultar este player flutuante (a leitura continua normalmente)">
+              Ocultar
             </button>
-            <button type="button" class="botao-consentimento secundario" data-consentimento="SOMENTE_LOCAL">
-              Usar voz local
-            </button>
-            <button type="button" class="botao-consentimento perigo" data-consentimento="CANCELAR">
-              Cancelar
+            <button type="button" class="botao-acao-cabecalho" data-acao="abrir-configuracoes" title="Abrir configurações e seleção de voz">
+              ⚙ Configurações
             </button>
           </div>
-        </div>
+        </header>
 
         <div class="linha-controles-principais">
           <div class="grupo-botoes-transporte">
@@ -135,25 +125,20 @@
           </div>
 
           <div class="bloco-velocidade">
-            <label class="rotulo-compacto" for="seletor-velocidade-player">Ritmo</label>
-            <select id="seletor-velocidade-player" class="seletor-estilizado" data-controle="velocidade" aria-label="Velocidade de reprodução">
-              <option value="0.75">0.75x</option>
-              <option value="1" selected>1.0x</option>
-              <option value="1.25">1.25x</option>
-              <option value="1.5">1.5x</option>
-              <option value="2">2.0x</option>
-            </select>
+            <label class="rotulo-compacto" for="seletor-velocidade-player">Velocidade</label>
+            <input
+              id="seletor-velocidade-player"
+              type="range"
+              class="slider-velocidade-player"
+              data-controle="velocidade"
+              min="0.75"
+              max="2"
+              step="0.01"
+              value="1"
+              aria-label="Velocidade de reprodução de 0.75x até 2.00x"
+            />
+            <span class="valor-velocidade-player" data-elemento="valor-velocidade">1.00x</span>
           </div>
-        </div>
-
-        <div class="linha-seletores-voz">
-          <select class="seletor-estilizado" data-controle="filtro-idioma" aria-label="Filtrar vozes por idioma">
-            <option value="TODOS">Idioma: Todos</option>
-            <option value="pt-BR">Português (pt-BR)</option>
-            <option value="en-US">Inglês (en-US)</option>
-          </select>
-          <select class="seletor-estilizado seletor-voz-expandido" data-controle="seletor-voz" aria-label="Selecionar voz natural">
-          </select>
         </div>
 
         <footer class="rodape-atalhos">
@@ -172,16 +157,14 @@
       this.botaoProxima = container.querySelector('[data-acao="proxima"]');
       this.botaoParar = container.querySelector('[data-acao="parar"]');
       this.seletorVelocidade = container.querySelector('[data-controle="velocidade"]');
-      this.seletorFiltroIdioma = container.querySelector('[data-controle="filtro-idioma"]');
-      this.seletorVoz = container.querySelector('[data-controle="seletor-voz"]');
-      this.painelConsentimento = container.querySelector(
-        '[data-elemento="painel-consentimento"]'
+      this.elementoValorVelocidade = container.querySelector(
+        '[data-elemento="valor-velocidade"]'
       );
-      this.botaoModoPrivacidade = container.querySelector('[data-acao="revisar-privacidade"]');
+      this.botaoOcultarPlayer = container.querySelector('[data-acao="ocultar-player"]');
+      this.botaoConfiguracoes = container.querySelector('[data-acao="abrir-configuracoes"]');
 
       this.vincularEventosInterativos();
       this.configurarArrastePointerEvents();
-      this.renderizarOpcoesDeVozes();
     }
 
     /**
@@ -205,64 +188,56 @@
         this.callbacks.aoPararLeitura();
       });
 
-      this.seletorVelocidade.addEventListener('change', (evento) => {
-        const novaVelocidade = parseFloat(evento.target.value);
+      const aoMudarVelocidadePlayer = (evento) => {
+        const novaVelocidade =
+          Math.round(parseFloat(evento.target.value) * 100) / 100;
         this.velocidadeAtual = novaVelocidade;
-        this.callbacks.aoAlterarVelocidade(novaVelocidade);
-      });
-
-      this.seletorFiltroIdioma.addEventListener('change', (evento) => {
-        this.idiomaFiltroAtual = evento.target.value;
-        this.renderizarOpcoesDeVozes();
-        this.callbacks.aoAlterarFiltroIdioma(this.idiomaFiltroAtual);
-      });
-
-      this.seletorVoz.addEventListener('change', (evento) => {
-        this.vozSelecionadaAtual = evento.target.value;
-        this.callbacks.aoAlterarVoz(this.vozSelecionadaAtual);
-      });
-
-      this.botaoModoPrivacidade.addEventListener('click', (evento) => {
-        evento.stopPropagation();
-        this.painelConsentimento.hidden = !this.painelConsentimento.hidden;
-      });
-
-      this.painelConsentimento.addEventListener('click', (evento) => {
-        const botaoClicado = evento.target.closest('[data-consentimento]');
-        if (!botaoClicado) {
-          return;
+        if (this.elementoValorVelocidade) {
+          this.elementoValorVelocidade.textContent = `${novaVelocidade.toFixed(2)}x`;
         }
-        const decisao = botaoClicado.getAttribute('data-consentimento');
-        this.painelConsentimento.hidden = true;
-        this.callbacks.aoDefinirModoPrivacidade(decisao);
-      });
+        this.callbacks.aoAlterarVelocidade(novaVelocidade);
+      };
+      if (this.seletorVelocidade) {
+        this.seletorVelocidade.addEventListener('input', aoMudarVelocidadePlayer);
+        this.seletorVelocidade.addEventListener('change', aoMudarVelocidadePlayer);
+      }
+
+      if (this.botaoOcultarPlayer) {
+        this.botaoOcultarPlayer.addEventListener('click', (evento) => {
+          evento.stopPropagation();
+          this.ocultar();
+          if (typeof this.callbacks.aoOcultarPlayerNaPagina === 'function') {
+            this.callbacks.aoOcultarPlayerNaPagina();
+          }
+        });
+      }
+
+      if (this.botaoConfiguracoes) {
+        this.botaoConfiguracoes.addEventListener('click', (evento) => {
+          evento.stopPropagation();
+          if (typeof this.callbacks.aoAbrirConfiguracoes === 'function') {
+            this.callbacks.aoAbrirConfiguracoes();
+          }
+        });
+      }
     }
 
     /**
-     * Configura o comportamento arrastável (Draggable) via Pointer Events com confinamento na viewport.
+     * Configura o comportamento arrastável (Draggable) em qualquer área livre do container
+     * escutando movimentos no escopo global (window) para funcionar durante a leitura ativa.
      * @returns {void}
      */
     configurarArrastePointerEvents() {
-      const alcaArraste = this.elementoContainer.querySelector('[data-alca-arraste="true"]');
       let arrastando = false;
+      let idPonteiroAtivo = null;
       let deslocamentoInicialX = 0;
       let deslocamentoInicialY = 0;
 
-      alcaArraste.addEventListener('pointerdown', (evento) => {
-        if (evento.target.closest('button')) {
+      const aoMoverPonteiroGlobal = (evento) => {
+        if (!arrastando) {
           return;
         }
-        arrastando = true;
-        const retangulo = this.elementoContainer.getBoundingClientRect();
-        deslocamentoInicialX = evento.clientX - retangulo.left;
-        deslocamentoInicialY = evento.clientY - retangulo.top;
-        if (typeof alcaArraste.setPointerCapture === 'function') {
-          alcaArraste.setPointerCapture(evento.pointerId);
-        }
-      });
-
-      alcaArraste.addEventListener('pointermove', (evento) => {
-        if (!arrastando) {
+        if (idPonteiroAtivo !== null && evento.pointerId !== idPonteiroAtivo) {
           return;
         }
         const posicaoRestrita = this.restringirCoordenadasNaViewport(
@@ -273,29 +248,83 @@
         this.elementoContainer.style.top = `${posicaoRestrita.y}px`;
         this.elementoContainer.style.bottom = 'auto';
         this.elementoContainer.style.right = 'auto';
-      });
+      };
 
-      const finalizarArraste = (evento) => {
+      const finalizarArrasteGlobal = (evento) => {
         if (!arrastando) {
           return;
         }
+        if (
+          idPonteiroAtivo !== null &&
+          evento &&
+          typeof evento.pointerId === 'number' &&
+          evento.pointerId !== idPonteiroAtivo
+        ) {
+          return;
+        }
         arrastando = false;
-        if (typeof alcaArraste.releasePointerCapture === 'function') {
+        this.elementoContainer.removeAttribute('data-arrastando');
+        if (typeof this.elementoContainer.releasePointerCapture === 'function' && idPonteiroAtivo !== null) {
           try {
-            alcaArraste.releasePointerCapture(evento.pointerId);
+            this.elementoContainer.releasePointerCapture(idPonteiroAtivo);
           } catch {
             // Ignora se pointerId já foi liberado
           }
         }
+        idPonteiroAtivo = null;
+        if (typeof window !== 'undefined') {
+          window.removeEventListener('pointermove', aoMoverPonteiroGlobal);
+          window.removeEventListener('pointerup', finalizarArrasteGlobal);
+          window.removeEventListener('pointercancel', finalizarArrasteGlobal);
+        }
         const retanguloFinal = this.elementoContainer.getBoundingClientRect();
-        this.callbacks.aoSalvarPosicao({
-          x: retanguloFinal.left,
-          y: retanguloFinal.top
-        });
+        if (typeof this.callbacks.aoSalvarPosicao === 'function') {
+          this.callbacks.aoSalvarPosicao({
+            x: retanguloFinal.left,
+            y: retanguloFinal.top
+          });
+        }
       };
 
-      alcaArraste.addEventListener('pointerup', finalizarArraste);
-      alcaArraste.addEventListener('pointercancel', finalizarArraste);
+      this.elementoContainer.addEventListener('pointerdown', (evento) => {
+        if (evento.button !== undefined && evento.button !== 0) {
+          return;
+        }
+        const alvoInterativo =
+          evento.target && typeof evento.target.closest === 'function'
+            ? evento.target.closest('button, select, input, option, a, label')
+            : null;
+        if (alvoInterativo) {
+          return;
+        }
+
+        evento.preventDefault();
+        arrastando = true;
+        idPonteiroAtivo =
+          typeof evento.pointerId === 'number' ? evento.pointerId : null;
+        this.elementoContainer.setAttribute('data-arrastando', 'true');
+
+        const retangulo = this.elementoContainer.getBoundingClientRect();
+        deslocamentoInicialX = evento.clientX - retangulo.left;
+        deslocamentoInicialY = evento.clientY - retangulo.top;
+
+        if (
+          typeof this.elementoContainer.setPointerCapture === 'function' &&
+          idPonteiroAtivo !== null
+        ) {
+          try {
+            this.elementoContainer.setPointerCapture(idPonteiroAtivo);
+          } catch {
+            // Fallback seguro via listeners em window
+          }
+        }
+
+        if (typeof window !== 'undefined') {
+          window.addEventListener('pointermove', aoMoverPonteiroGlobal);
+          window.addEventListener('pointerup', finalizarArrasteGlobal);
+          window.addEventListener('pointercancel', finalizarArrasteGlobal);
+        }
+      });
     }
 
     /**
@@ -309,8 +338,8 @@
       const larguraJanela = typeof window !== 'undefined' ? window.innerWidth : 1024;
       const alturaJanela = typeof window !== 'undefined' ? window.innerHeight : 768;
       const retangulo = this.elementoContainer.getBoundingClientRect();
-      const larguraPlayer = retangulo.width || 440;
-      const alturaPlayer = retangulo.height || 140;
+      const larguraPlayer = retangulo.width || 380;
+      const alturaPlayer = retangulo.height || 90;
 
       return {
         x: Math.max(margem, Math.min(larguraJanela - larguraPlayer - margem, coordX)),
@@ -319,7 +348,7 @@
     }
 
     /**
-     * Atualiza o catálogo de vozes disponíveis e reconstrói os grupos com pt-BR e en-US no topo.
+     * Atualiza o catálogo interno de vozes disponíveis.
      * @param {Array<{nomeCurto: string, nomeExibicao: string, idioma: string, genero: string}>} listaVozes
      * @returns {void}
      */
@@ -327,124 +356,57 @@
       if (Array.isArray(listaVozes) && listaVozes.length > 0) {
         this.catalogoVozes = listaVozes;
       }
-      this.atualizarOpcoesDeIdioma();
-      this.renderizarOpcoesDeVozes();
     }
 
     /**
-     * Popula o seletor de filtro de idiomas preservando pt-BR e en-US no topo.
+     * Mantido para compatibilidade com versões anteriores da interface.
      * @returns {void}
      */
     atualizarOpcoesDeIdioma() {
-      const idiomasUnicos = new Set(['pt-BR', 'en-US']);
-      for (const voz of this.catalogoVozes) {
-        if (voz && voz.idioma) {
-          idiomasUnicos.add(voz.idioma);
-        }
-      }
-
-      this.seletorFiltroIdioma.innerHTML = '';
-      const opcaoTodos = document.createElement('option');
-      opcaoTodos.value = 'TODOS';
-      opcaoTodos.textContent = 'Idioma: Todos';
-      this.seletorFiltroIdioma.appendChild(opcaoTodos);
-
-      for (const codigoIdioma of idiomasUnicos) {
-        const opcao = document.createElement('option');
-        opcao.value = codigoIdioma;
-        opcao.textContent =
-          codigoIdioma === 'pt-BR'
-            ? 'Português (pt-BR)'
-            : codigoIdioma === 'en-US'
-              ? 'Inglês (en-US)'
-              : codigoIdioma;
-        this.seletorFiltroIdioma.appendChild(opcao);
-      }
-
-      this.seletorFiltroIdioma.value = idiomasUnicos.has(this.idiomaFiltroAtual)
-        ? this.idiomaFiltroAtual
-        : 'TODOS';
+      // Método reservado para compatibilidade de ciclo de vida
     }
 
     /**
-     * Renderiza o seletor de vozes agrupando pt-BR e en-US prioritariamente no topo.
+     * Mantido para compatibilidade com versões anteriores da interface.
      * @returns {void}
      */
     renderizarOpcoesDeVozes() {
-      const vozesFiltradas =
-        this.idiomaFiltroAtual === 'TODOS'
-          ? this.catalogoVozes
-          : this.catalogoVozes.filter((voz) => voz.idioma === this.idiomaFiltroAtual);
+      // Método reservado para compatibilidade de ciclo de vida
+    }
 
-      const listaParaExibir =
-        vozesFiltradas.length > 0 ? vozesFiltradas : this.catalogoVozes;
-
-      this.seletorVoz.innerHTML = '';
-
-      const grupoPtBr = document.createElement('optgroup');
-      grupoPtBr.label = '★ Português (pt-BR — Natural)';
-      const grupoEnUs = document.createElement('optgroup');
-      grupoEnUs.label = '★ Inglês (en-US — Natural)';
-      const grupoOutros = document.createElement('optgroup');
-      grupoOutros.label = 'Outras Vozes Naturais';
-
-      for (const itemVoz of listaParaExibir) {
-        const opcao = document.createElement('option');
-        opcao.value = itemVoz.nomeCurto;
-        opcao.textContent = itemVoz.nomeExibicao;
-
-        if (itemVoz.idioma === 'pt-BR') {
-          grupoPtBr.appendChild(opcao);
-        } else if (itemVoz.idioma === 'en-US') {
-          grupoEnUs.appendChild(opcao);
-        } else {
-          grupoOutros.appendChild(opcao);
+    /**
+     * Sincroniza os valores de velocidade e vozes sem alterar o estado de exibição.
+     * @param {Object} configuracao
+     * @returns {void}
+     */
+    sincronizarSeletoresComConfiguracao(configuracao = {}) {
+      if (configuracao.vozSelecionada) {
+        this.vozSelecionadaAtual = configuracao.vozSelecionada;
+      }
+      if (configuracao.idiomaFiltro) {
+        this.idiomaFiltroAtual = configuracao.idiomaFiltro;
+      }
+      if (configuracao.velocidadeReproducao) {
+        this.velocidadeAtual =
+          Math.round(Number(configuracao.velocidadeReproducao) * 100) / 100;
+        if (this.seletorVelocidade) {
+          this.seletorVelocidade.value = String(this.velocidadeAtual);
         }
-      }
-
-      if (grupoPtBr.children.length > 0) {
-        this.seletorVoz.appendChild(grupoPtBr);
-      }
-      if (grupoEnUs.children.length > 0) {
-        this.seletorVoz.appendChild(grupoEnUs);
-      }
-      if (grupoOutros.children.length > 0) {
-        this.seletorVoz.appendChild(grupoOutros);
-      }
-
-      const possuiVozAtual = listaParaExibir.some(
-        (voz) => voz.nomeCurto === this.vozSelecionadaAtual
-      );
-      if (possuiVozAtual) {
-        this.seletorVoz.value = this.vozSelecionadaAtual;
-      } else if (listaParaExibir[0]) {
-        this.vozSelecionadaAtual = listaParaExibir[0].nomeCurto;
-        this.seletorVoz.value = this.vozSelecionadaAtual;
+        if (this.elementoValorVelocidade) {
+          this.elementoValorVelocidade.textContent = `${this.velocidadeAtual.toFixed(2)}x`;
+        }
       }
     }
 
     /**
-     * Exibe o Mini-Player aplicando as configurações salvas e posicionando na viewport.
+     * Exibe o Mini-Player aplicando as configurações salvas e posicionando no topo por padrão
+     * ou na posição persistida pelo usuário após arraste anterior.
      * @param {Object} configuracaoInicial
-     * @param {boolean} [exibirPainelConsentimento=false]
+     * @param {boolean} [_exibirPainelConsentimento=false]
      * @returns {void}
      */
-    exibir(configuracaoInicial = {}, exibirPainelConsentimento = false) {
-      if (configuracaoInicial.vozSelecionada) {
-        this.vozSelecionadaAtual = configuracaoInicial.vozSelecionada;
-      }
-      if (configuracaoInicial.idiomaFiltro) {
-        this.idiomaFiltroAtual = configuracaoInicial.idiomaFiltro;
-      }
-      if (configuracaoInicial.velocidadeReproducao) {
-        this.velocidadeAtual = configuracaoInicial.velocidadeReproducao;
-        this.seletorVelocidade.value = String(this.velocidadeAtual);
-      }
-
-      this.atualizarOpcoesDeIdioma();
-      this.renderizarOpcoesDeVozes();
-
-      this.painelConsentimento.hidden = !exibirPainelConsentimento;
+    exibir(configuracaoInicial = {}, _exibirPainelConsentimento = false) {
+      this.sincronizarSeletoresComConfiguracao(configuracaoInicial);
       this.elementoContainer.hidden = false;
 
       if (
@@ -461,20 +423,20 @@
         this.elementoContainer.style.bottom = 'auto';
         this.elementoContainer.style.right = 'auto';
       } else {
-        this.elementoContainer.style.right = '24px';
-        this.elementoContainer.style.bottom = '24px';
-        this.elementoContainer.style.left = 'auto';
-        this.elementoContainer.style.top = 'auto';
+        const larguraJanela = typeof window !== 'undefined' ? window.innerWidth : 1024;
+        const larguraPlayer = this.elementoContainer.offsetWidth || 380;
+        const posX = Math.max(12, Math.round((larguraJanela - larguraPlayer) / 2));
+        const posY = 20;
+        this.elementoContainer.style.left = `${posX}px`;
+        this.elementoContainer.style.top = `${posY}px`;
+        this.elementoContainer.style.bottom = 'auto';
+        this.elementoContainer.style.right = 'auto';
       }
     }
 
     /**
      * Atualiza os indicadores visuais de estado da leitura e progresso de frases.
      * @param {Object} dadosEstado
-     * @param {string} dadosEstado.estadoAtual - 'REPRODUZINDO' | 'PAUSADO' | 'CARREGANDO' | 'BUFFERIZANDO' | 'AGUARDANDO_CONSENTIMENTO'
-     * @param {number} dadosEstado.indiceSentencaAtual
-     * @param {number} dadosEstado.totalSentencas
-     * @param {boolean} dadosEstado.usandoFallbackLocal
      * @returns {void}
      */
     atualizarEstadoVisual({
@@ -518,7 +480,6 @@
     ocultar() {
       if (this.elementoContainer) {
         this.elementoContainer.hidden = true;
-        this.painelConsentimento.hidden = true;
       }
     }
 

@@ -1,6 +1,7 @@
 /**
  * Folha de estilos encapsulada para a ShadowRoot da extensão Read For Me.
- * Implementa estética Glassmorphism / Dark Mode elegante sem interferir na página hospedeira.
+ * Implementa a estética do Player Flutuante (Obsidiana #0B0F17, Superfície #182030,
+ * Laranja #FF5500, Âmbar #FFB800 e Marfim #F4F0EA) sem interferir na página hospedeira.
  */
 (function inicializarEstilosShadowUi(escopoGlobal) {
   escopoGlobal.ReadForMe = escopoGlobal.ReadForMe || {};
@@ -9,7 +10,7 @@
     :host {
       all: initial;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Inter, sans-serif;
-      color: #f8fafc;
+      color: #f4f0ea;
       user-select: none;
       -webkit-font-smoothing: antialiased;
     }
@@ -24,15 +25,15 @@
       z-index: 2147483646;
       display: inline-flex;
       align-items: center;
-      gap: 6px;
-      padding: 6px 12px;
+      gap: 7px;
+      padding: 6px 13px;
       border-radius: 999px;
-      background: rgba(15, 23, 42, 0.92);
+      background: rgba(11, 15, 23, 0.95);
       backdrop-filter: blur(12px) saturate(180%);
       -webkit-backdrop-filter: blur(12px) saturate(180%);
-      border: 1px solid rgba(56, 189, 248, 0.38);
-      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.06);
-      color: #f8fafc;
+      border: 1px solid rgba(255, 85, 0, 0.55);
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.06);
+      color: #f4f0ea;
       font-size: 12.5px;
       font-weight: 600;
       letter-spacing: 0.01em;
@@ -42,8 +43,8 @@
     }
 
     .botao-flutuante-selecao:hover {
-      background: rgba(30, 41, 59, 0.96);
-      border-color: #38bdf8;
+      background: rgba(20, 26, 38, 0.98);
+      border-color: #ff5500;
       transform: translateY(-1px) scale(1.02);
     }
 
@@ -56,37 +57,44 @@
     }
 
     .icone-onda-audio {
-      width: 15px;
-      height: 15px;
-      color: #38bdf8;
+      width: 13px;
+      height: 13px;
+      color: #ff5500;
       flex-shrink: 0;
     }
 
-    /* Mini-Player Flutuante (Glassmorphism Dark Mode) */
+    /* Mini-Player Flutuante Opcional (Obsidiana Editorial) */
     .mini-player-container {
       position: fixed;
       z-index: 2147483647;
-      width: 440px;
+      width: 380px;
       max-width: calc(100vw - 24px);
-      border-radius: 16px;
-      background: rgba(15, 23, 42, 0.88);
+      border-radius: 14px;
+      background: rgba(11, 15, 23, 0.94);
       backdrop-filter: blur(18px) saturate(190%);
       -webkit-backdrop-filter: blur(18px) saturate(190%);
       border: 1px solid rgba(255, 255, 255, 0.14);
-      box-shadow: 0 22px 45px -12px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(56, 189, 248, 0.14);
-      color: #f8fafc;
-      padding: 12px 14px;
+      box-shadow: 0 24px 48px -12px rgba(0, 0, 0, 0.78), 0 0 0 1px rgba(255, 85, 0, 0.22);
+      color: #f4f0ea;
+      padding: 10px 14px;
       pointer-events: auto;
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      gap: 8px;
       outline: none;
+      cursor: grab;
+      touch-action: none;
       transition: box-shadow 0.2s ease, border-color 0.2s ease;
     }
 
+    .mini-player-container[data-arrastando="true"] {
+      cursor: grabbing !important;
+      border-color: #ff5500;
+      box-shadow: 0 28px 56px -10px rgba(0, 0, 0, 0.85), 0 0 0 2px rgba(255, 85, 0, 0.45);
+    }
+
     .mini-player-container:focus-within {
-      border-color: rgba(56, 189, 248, 0.55);
-      box-shadow: 0 22px 45px -12px rgba(0, 0, 0, 0.75), 0 0 0 2px rgba(56, 189, 248, 0.32);
+      border-color: rgba(255, 85, 0, 0.6);
     }
 
     .mini-player-container[hidden] {
@@ -102,11 +110,6 @@
       cursor: grab;
       padding-bottom: 6px;
       border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-      touch-action: none;
-    }
-
-    .cabecalho-player:active {
-      cursor: grabbing;
     }
 
     .bloco-marca-status {
@@ -117,7 +120,7 @@
     }
 
     .alca-arraste-icone {
-      color: #64748b;
+      color: #ff5500;
       display: flex;
       align-items: center;
       flex-shrink: 0;
@@ -131,16 +134,16 @@
       border-radius: 999px;
       font-size: 11px;
       font-weight: 600;
-      background: rgba(56, 189, 248, 0.14);
-      color: #38bdf8;
-      border: 1px solid rgba(56, 189, 248, 0.28);
+      background: rgba(255, 85, 0, 0.16);
+      color: #ff7733;
+      border: 1px solid rgba(255, 85, 0, 0.35);
       white-space: nowrap;
     }
 
     .badge-status[data-modo="fallback"] {
-      background: rgba(250, 204, 21, 0.14);
-      color: #facc15;
-      border-color: rgba(250, 204, 21, 0.3);
+      background: rgba(255, 184, 0, 0.16);
+      color: #ffb800;
+      border-color: rgba(255, 184, 0, 0.35);
     }
 
     .ponto-pulsante {
@@ -157,79 +160,33 @@
       white-space: nowrap;
     }
 
+    .acoes-cabecalho-player {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .botao-acao-cabecalho,
     .botao-privacidade-modo {
-      background: transparent;
+      background: rgba(255, 255, 255, 0.05);
       border: 1px solid rgba(255, 255, 255, 0.12);
       color: #cbd5e1;
       border-radius: 6px;
-      padding: 2px 7px;
+      padding: 3px 8px;
       font-size: 10.5px;
+      font-weight: 500;
       cursor: pointer;
-      transition: background 0.15s ease, color 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
     }
 
+    .botao-acao-cabecalho:hover,
     .botao-privacidade-modo:hover {
-      background: rgba(255, 255, 255, 0.08);
+      background: rgba(255, 85, 0, 0.15);
+      border-color: rgba(255, 85, 0, 0.45);
       color: #ffffff;
-    }
-
-    /* Banner de Consentimento de Privacidade */
-    .painel-consentimento {
-      background: rgba(30, 41, 59, 0.95);
-      border: 1px solid rgba(56, 189, 248, 0.35);
-      border-radius: 10px;
-      padding: 10px 12px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-
-    .painel-consentimento[hidden] {
-      display: none !important;
-    }
-
-    .texto-consentimento {
-      font-size: 12px;
-      line-height: 1.45;
-      color: #e2e8f0;
-      margin: 0;
-    }
-
-    .acoes-consentimento {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      justify-content: flex-end;
-    }
-
-    .botao-consentimento {
-      padding: 5px 10px;
-      border-radius: 7px;
-      font-size: 11.5px;
-      font-weight: 600;
-      cursor: pointer;
-      border: 1px solid transparent;
-      transition: filter 0.15s ease, background 0.15s ease;
-    }
-
-    .botao-consentimento.primario {
-      background: #0284c7;
-      color: #ffffff;
-    }
-
-    .botao-consentimento.secundario {
-      background: rgba(255, 255, 255, 0.1);
-      border-color: rgba(255, 255, 255, 0.16);
-      color: #f8fafc;
-    }
-
-    .botao-consentimento.perigo {
-      background: transparent;
-      color: #94a3b8;
-    }
-
-    .botao-consentimento:hover {
-      filter: brightness(1.12);
     }
 
     /* Linha Principal de Controles de Reprodução */
@@ -252,17 +209,17 @@
       justify-content: center;
       width: 34px;
       height: 34px;
-      border-radius: 10px;
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      background: rgba(30, 41, 59, 0.75);
-      color: #f1f5f9;
+      border-radius: 9px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: rgba(24, 32, 48, 0.85);
+      color: #f4f0ea;
       cursor: pointer;
       transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
     }
 
     .botao-controle:hover:not(:disabled) {
-      background: rgba(51, 65, 85, 0.9);
-      border-color: rgba(56, 189, 248, 0.45);
+      background: rgba(38, 49, 71, 0.95);
+      border-color: rgba(255, 85, 0, 0.55);
     }
 
     .botao-controle:active:not(:disabled) {
@@ -277,13 +234,13 @@
     .botao-controle.destaque-play {
       width: 40px;
       height: 36px;
-      background: linear-gradient(135deg, #0284c7, #0369a1);
-      border-color: rgba(56, 189, 248, 0.5);
+      background: linear-gradient(135deg, #ff5500, #d94600);
+      border-color: rgba(255, 136, 0, 0.6);
       color: #ffffff;
     }
 
     .botao-controle.destaque-play:hover:not(:disabled) {
-      background: linear-gradient(135deg, #0ea5e9, #0284c7);
+      background: linear-gradient(135deg, #ff6a1a, #ff5500);
     }
 
     .botao-controle.botao-parar:hover:not(:disabled) {
@@ -291,11 +248,11 @@
       color: #fca5a5;
     }
 
-    /* Seletores de Velocidade, Idioma e Voz */
+    /* Seletores de Velocidade, Idioma, Voz e Botão de Prévia */
     .bloco-velocidade {
       display: flex;
       align-items: center;
-      gap: 5px;
+      gap: 6px;
     }
 
     .rotulo-compacto {
@@ -304,44 +261,42 @@
       font-weight: 500;
     }
 
-    .seletor-estilizado {
-      appearance: none;
+    .slider-velocidade-player {
       -webkit-appearance: none;
-      background-color: rgba(30, 41, 59, 0.85);
+      appearance: none;
+      width: 96px;
+      height: 6px;
+      border-radius: 999px;
+      background: rgba(24, 32, 48, 0.95);
       border: 1px solid rgba(255, 255, 255, 0.14);
-      border-radius: 8px;
-      color: #f8fafc;
-      font-size: 12px;
-      font-weight: 500;
-      padding: 6px 10px;
-      cursor: pointer;
       outline: none;
-      transition: border-color 0.15s ease, background-color 0.15s ease;
+      cursor: pointer;
     }
 
-    .seletor-estilizado:hover, .seletor-estilizado:focus {
-      border-color: #38bdf8;
-      background-color: rgba(30, 41, 59, 1);
+    .slider-velocidade-player::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #ff5500, #d94600);
+      border: 2px solid #f4f0ea;
+      cursor: grab;
     }
 
-    .seletor-estilizado option, .seletor-estilizado optgroup {
-      background-color: #0f172a;
-      color: #f8fafc;
+    .valor-velocidade-player {
+      min-width: 42px;
+      padding: 2px 6px;
+      border-radius: 6px;
+      background: rgba(24, 32, 48, 0.9);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      font-size: 11px;
+      font-weight: 600;
+      color: #f4f0ea;
+      font-variant-numeric: tabular-nums;
+      text-align: center;
     }
 
-    .linha-seletores-voz {
-      display: grid;
-      grid-template-columns: 125px 1fr;
-      gap: 8px;
-      align-items: center;
-    }
-
-    .seletor-voz-expandido {
-      width: 100%;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      overflow: hidden;
-    }
 
     .rodape-atalhos {
       display: flex;

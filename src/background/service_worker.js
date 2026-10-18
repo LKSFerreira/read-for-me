@@ -6,7 +6,8 @@ const { CONSTANTES_SISTEMA } = globalThis.ReadForMe;
 
 /**
  * Controlador principal do Service Worker (Manifest V3).
- * Coordena menu de contexto, atalhos globais, canal persistente Keep-Alive e síntese de áudio.
+ * Coordena menus de contexto ("Ler a partir daqui" e "Ler apenas o trecho selecionado"),
+ * atalhos globais, prévia de voz (preview), canal persistente Keep-Alive e síntese de áudio.
  */
 export class ControladorBackground {
   constructor() {
@@ -23,23 +24,49 @@ export class ControladorBackground {
       return;
     }
 
+    console.log('[ReadForMe][Background] Inicializando Service Worker...');
+    ClienteWebSocketEdgeTts.garantirCabecalhosRedeEdgeTts();
+
     chrome.runtime.onInstalled.addListener(() => {
+      console.log('[ReadForMe][Background] Evento onInstalled disparado.');
+      ClienteWebSocketEdgeTts.garantirCabecalhosRedeEdgeTts();
       this.registrarMenuContexto();
     });
 
     if (chrome.contextMenus && chrome.contextMenus.onClicked) {
       chrome.contextMenus.onClicked.addListener((infoClique, abaAlvo) => {
+        if (!abaAlvo || typeof abaAlvo.id !== 'number') {
+          return;
+        }
+
         if (
-          infoClique.menuItemId === CONSTANTES_SISTEMA.ID_MENU_CONTEXTO &&
-          abaAlvo &&
-          typeof abaAlvo.id === 'number'
+          infoClique.menuItemId === CONSTANTES_SISTEMA.ID_MENU_LER_A_PARTIR_DAQUI
         ) {
           chrome.tabs
             .sendMessage(abaAlvo.id, {
-              tipoMensagem: CONSTANTES_SISTEMA.TIPOS_MENSAGEM.INICIAR_LEITURA_MENU
+              tipoMensagem: CONSTANTES_SISTEMA.TIPOS_MENSAGEM.INICIAR_LEITURA_A_PARTIR_DAQUI
             })
-            .catch(() => {
-              // Ignora erro caso a aba não suporte content scripts (ex.: páginas chrome://)
+            .catch((erroEnvio) => {
+              console.error(
+                '[ReadForMe][Background] Falha ao enviar INICIAR_LEITURA_A_PARTIR_DAQUI para a aba:',
+                erroEnvio
+              );
+            });
+          return;
+        }
+
+        if (
+          infoClique.menuItemId === CONSTANTES_SISTEMA.ID_MENU_LER_SELECAO_EXATA
+        ) {
+          chrome.tabs
+            .sendMessage(abaAlvo.id, {
+              tipoMensagem: CONSTANTES_SISTEMA.TIPOS_MENSAGEM.INICIAR_LEITURA_SELECAO_EXATA
+            })
+            .catch((erroEnvio) => {
+              console.error(
+                '[ReadForMe][Background] Falha ao enviar INICIAR_LEITURA_SELECAO_EXATA para a aba:',
+                erroEnvio
+              );
             });
         }
       });
@@ -79,9 +106,16 @@ export class ControladorBackground {
       if (mensagem.tipoMensagem === CONSTANTES_SISTEMA.TIPOS_MENSAGEM.OBTER_CATALOGO_VOZES) {
         ServicoCatalogoVozes.obterCatalogoVozesOrdenado()
           .then((catalogoVozes) => {
+            console.log(
+              `[ReadForMe][Background] Catálogo de vozes carregado (${catalogoVozes.length} vozes).`
+            );
             enviarResposta({ sucesso: true, vozes: catalogoVozes });
           })
-          .catch(() => {
+          .catch((erroCatalogo) => {
+            console.error(
+              '[ReadForMe][Background] Erro ao carregar catálogo de vozes, usando catálogo padrão:',
+              erroCatalogo
+            );
             enviarResposta({
               sucesso: true,
               vozes: [...CONSTANTES_SISTEMA.VOZES_NATURAIS_INTEGRADA_PADRAO]
@@ -90,12 +124,68 @@ export class ControladorBackground {
         return true;
       }
 
+      if (mensagem.tipoMensagem === CONSTANTES_SISTEMA.TIPOS_MENSAGEM.PREVISUALIZAR_VOZ) {
+        const payload = mensagem.payload || {};
+        const nomeVoz =
+          payload.nomeVoz || CONSTANTES_SISTEMA.VALORES_PADRAO.VOZ_SELECIONADA;
+        const idiomaPrefixo = nomeVoz.slice(0, 5);
+        const textoPrevia =
+          payload.textoPrevia ||
+          CONSTANTES_SISTEMA.TEXTOS_PREVIA_VOZ[idiomaPrefixo] ||
+          (nomeVoz.startsWith('en-')
+            ? CONSTANTES_SISTEMA.TEXTOS_PREVIA_VOZ['en-US']
+            : CONSTANTES_SISTEMA.TEXTOS_PREVIA_VOZ.PADRAO);
+
+        console.log('[ReadForMe][Background] Solicitação PREVISUALIZAR_VOZ recebida:', {
+          nomeVoz,
+          textoPrevia
+        });
+
+        this.clienteEdgeTts.resetarCircuito();
+        this.clienteEdgeTts
+          .sintetizarSentenca({
+            textoSentenca: textoPrevia,
+            nomeVoz
+          })
+          .then((resultado) => {
+            enviarResposta({
+              sucesso: true,
+              audioBase64: resultado.audioBase64,
+              textoPrevia,
+              logsDiagnostico: resultado.logsDiagnostico || []
+            });
+          })
+          .catch((erro) => {
+            const motivoErro =
+              erro instanceof Error
+                ? erro.message
+                : 'Falha ao sintetizar prévia de voz.';
+            console.error(
+              '[ReadForMe][Background] Erro em PREVISUALIZAR_VOZ:',
+              motivoErro,
+              erro && erro.logsDiagnostico ? erro.logsDiagnostico : ''
+            );
+            enviarResposta({
+              sucesso: false,
+              textoPrevia,
+              motivoErro,
+              logsDiagnostico: (erro && erro.logsDiagnostico) || []
+            });
+          });
+      if (mensagem.tipoMensagem === CONSTANTES_SISTEMA.TIPOS_MENSAGEM.ABRIR_CONFIGURACOES) {
+        if (chrome.runtime && typeof chrome.runtime.openOptionsPage === 'function') {
+          chrome.runtime.openOptionsPage();
+        }
+        enviarResposta({ sucesso: true });
+        return true;
+      }
+
       return false;
     });
   }
 
   /**
-   * Cria ou recria o item "Ler seleção" no menu de contexto de seleção de texto.
+   * Cria os itens "Ler a partir daqui" (página inteira ou seleção) e "Ler apenas o trecho selecionado".
    * @returns {void}
    */
   registrarMenuContexto() {
@@ -104,8 +194,13 @@ export class ControladorBackground {
     }
     chrome.contextMenus.removeAll(() => {
       chrome.contextMenus.create({
-        id: CONSTANTES_SISTEMA.ID_MENU_CONTEXTO,
-        title: 'Ler seleção',
+        id: CONSTANTES_SISTEMA.ID_MENU_LER_A_PARTIR_DAQUI,
+        title: 'Ler a partir daqui',
+        contexts: ['page', 'selection']
+      });
+      chrome.contextMenus.create({
+        id: CONSTANTES_SISTEMA.ID_MENU_LER_SELECAO_EXATA,
+        title: 'Ler apenas o trecho selecionado',
         contexts: ['selection']
       });
     });
@@ -121,6 +216,8 @@ export class ControladorBackground {
       portaConectada.sender && portaConectada.sender.tab
         ? portaConectada.sender.tab.id
         : `porta-${Date.now()}`;
+
+    console.log(`[ReadForMe][Background] Porta Keep-Alive conectada (idAba=${idAba}).`);
 
     portaConectada.onMessage.addListener(async (mensagem) => {
       if (!mensagem || typeof mensagem.tipoMensagem !== 'string') {
@@ -168,6 +265,18 @@ export class ControladorBackground {
     const controladorAborto = new AbortController();
     this.controladoresAbortoPorChave.set(chaveAborto, controladorAborto);
 
+    console.log('[ReadForMe][Background] Processando SINTETIZAR_SENTENCA:', {
+      idAba,
+      idSessaoLeitura,
+      indiceSentenca,
+      nomeVoz,
+      idRequisicao
+    });
+
+    if (indiceSentenca === 0) {
+      this.clienteEdgeTts.resetarCircuito();
+    }
+
     try {
       const resultado = await this.clienteEdgeTts.sintetizarSentenca({
         textoSentenca,
@@ -185,24 +294,33 @@ export class ControladorBackground {
           idRequisicao,
           idSessaoLeitura,
           indiceSentenca,
+          nomeVoz,
           audioBase64: resultado.audioBase64,
-          limitesPalavras: resultado.limitesPalavras
+          limitesPalavras: resultado.limitesPalavras,
+          logsDiagnostico: resultado.logsDiagnostico || []
         }
       });
     } catch (erroSintese) {
       if (controladorAborto.signal.aborted) {
         return;
       }
+      const motivoErro =
+        erroSintese instanceof Error
+          ? erroSintese.message
+          : 'Erro ao sintetizar sentença no Edge TTS.';
+      console.error(
+        `[ReadForMe][Background] Falha na síntese da sentença #${indiceSentenca} (voz=${nomeVoz}):`,
+        motivoErro
+      );
       this.enviarMensagemSeguraNaPorta(portaConectada, {
         tipoMensagem: CONSTANTES_SISTEMA.TIPOS_MENSAGEM.FALHA_SINTESE_USAR_FALLBACK,
         payload: {
           idRequisicao,
           idSessaoLeitura,
           indiceSentenca,
-          motivoErro:
-            erroSintese instanceof Error
-              ? erroSintese.message
-              : 'Erro ao sintetizar sentença no Edge TTS.'
+          nomeVoz,
+          motivoErro,
+          logsDiagnostico: (erroSintese && erroSintese.logsDiagnostico) || []
         }
       });
     } finally {
@@ -246,3 +364,5 @@ export class ControladorBackground {
 
 const instanciaControladorBackground = new ControladorBackground();
 instanciaControladorBackground.inicializar();
+globalThis.ReadForMe.controladorBackground = instanciaControladorBackground;
+

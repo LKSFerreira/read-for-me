@@ -1,10 +1,11 @@
 /**
  * Máquina de estados central do Content Script (OrquestradorLeituraContent).
  * Coordena:
- * - Mapeamento de seleção DOM e Sentence Chunking;
- * - Pipeline de Pre-fetching concorrente em janela deslizante (N, N+1, N+2);
- * - Canal persistente Keep-Alive com o Service Worker e reidratação com backoff [250, 500, 1000] ms;
- * - Sincronização de highlight (CSS Custom Highlight API) e reprodução de áudio com fallback local.
+ * - Leitura contínua a partir de uma palavra/letra selecionada ou clique direito ("Ler a partir daqui") até o fim do conteúdo;
+ * - Remoção automática da seleção nativa ao iniciar a leitura para não contaminar os highlights;
+ * - Personalização dinâmica de cores e estilos da CSS Custom Highlight API em tempo real;
+ * - Exibição do Mini-Player flutuante (habilitado por padrão; pode ser desativado nas Opções);
+ * - Pipeline de Pre-fetching concorrente em janela deslizante (N, N+1, N+2) e Keep-Alive MV3.
  */
 (function inicializarOrquestradorLeituraContent(escopoGlobal) {
   escopoGlobal.ReadForMe = escopoGlobal.ReadForMe || {};
@@ -19,7 +20,8 @@
     CSS_SHADOW_UI,
     BotaoFlutuanteSelecao,
     MiniPlayerFlutuante,
-    GerenciadorAtalhosTeclado
+    GerenciadorAtalhosTeclado,
+    UtilitariosTexto
   } = escopoGlobal.ReadForMe;
 
   class OrquestradorLeituraContent {
@@ -40,13 +42,21 @@
       this.tentativasReconexao = 0;
       this.idTimeoutReconexao = null;
       this.usandoFallbackLocal = false;
+      this.ultimoPontoCliqueDireito = null;
+      this.audioPreviaAtivo = null;
 
       this.configuracaoAtual = {
         vozSelecionada: CONSTANTES_SISTEMA.VALORES_PADRAO.VOZ_SELECIONADA,
         velocidadeReproducao: CONSTANTES_SISTEMA.VALORES_PADRAO.VELOCIDADE_REPRODUCAO,
         idiomaFiltro: CONSTANTES_SISTEMA.VALORES_PADRAO.IDIOMA_FILTRO,
         posicaoMiniPlayer: null,
-        modoPrivacidadeVoz: CONSTANTES_SISTEMA.VALORES_PADRAO.MODO_PRIVACIDADE_VOZ
+        modoPrivacidadeVoz: CONSTANTES_SISTEMA.VALORES_PADRAO.MODO_PRIVACIDADE_VOZ,
+        exibirMiniPlayerFlutuante:
+          CONSTANTES_SISTEMA.VALORES_PADRAO.EXIBIR_MINI_PLAYER_FLUTUANTE,
+        exibirBotaoFlutuanteSelecao:
+          CONSTANTES_SISTEMA.VALORES_PADRAO.EXIBIR_BOTAO_FLUTUANTE_SELECAO,
+        modoLeituraContinua: CONSTANTES_SISTEMA.VALORES_PADRAO.MODO_LEITURA_CONTINUA,
+        estiloHighlight: { ...CONSTANTES_SISTEMA.ESTILO_HIGHLIGHT_PADRAO }
       };
 
       this.repositorioConfiguracao =
@@ -58,17 +68,31 @@
       this.reprodutorAudio =
         dependenciasInjetadas.reprodutorAudio ||
         new ReprodutorAudioBuffer({
-          aoAtivarPalavra: (dadosPalavra) => this.destacarPalavraDaSentencaAtiva(dadosPalavra),
+          aoAtivarPalavra: (dadosPalavra) =>
+            this.destacarPalavraDaSentencaAtiva(dadosPalavra),
           aoConcluirSentenca: () => this.avancarAutomaticamenteParaProximaSentenca(),
-          aoOcorrerErroAudio: () => this.acionarFallbackParaSentencaAtual()
+          aoOcorrerErroAudio: (erroAudio) => {
+            console.error(
+              '[ReadForMe ERRO][Orquestrador] Erro reportado pelo ReprodutorAudioBuffer:',
+              erroAudio
+            );
+            this.acionarFallbackParaSentencaAtual(erroAudio);
+          }
         });
 
       this.motorFallback =
         dependenciasInjetadas.motorFallback ||
         new MotorFallbackWebSpeech({
-          aoAtivarPalavra: (dadosPalavra) => this.destacarPalavraDaSentencaAtiva(dadosPalavra),
+          aoAtivarPalavra: (dadosPalavra) =>
+            this.destacarPalavraDaSentencaAtiva(dadosPalavra),
           aoConcluirSentenca: () => this.avancarAutomaticamenteParaProximaSentenca(),
-          aoOcorrerErroAudio: () => this.avancarAutomaticamenteParaProximaSentenca()
+          aoOcorrerErroAudio: (erroFallback) => {
+            console.error(
+              '[ReadForMe ERRO][Orquestrador] Erro reportado pelo MotorFallbackWebSpeech:',
+              erroFallback
+            );
+            this.avancarAutomaticamenteParaProximaSentenca();
+          }
         });
 
       this.raizShadow = null;
@@ -78,7 +102,7 @@
     }
 
     /**
-     * Inicializa o host Shadow DOM, componentes de UI, atalhos e listeners de eventos da página.
+     * Inicializa o host Shadow DOM, componentes de UI, atalhos, estilos de highlight e listeners da página.
      * @returns {Promise<void>}
      */
     async inicializarNaPagina() {
@@ -88,13 +112,23 @@
 
       this.configuracaoAtual =
         await this.repositorioConfiguracao.carregarConfiguracaoCompleta();
+      if (
+        this.gerenciadorHighlight &&
+        typeof this.gerenciadorHighlight.aplicarEstiloPersonalizado === 'function'
+      ) {
+        this.gerenciadorHighlight.aplicarEstiloPersonalizado(
+          this.configuracaoAtual.estiloHighlight
+        );
+      }
+
       this.criarHostShadowDom();
       this.registrarListenersDeSelecaoEMensagens();
+      this.registrarSincronizacaoReativaDeConfiguracoes();
       this.solicitarCatalogoDeVozesAoBackground();
     }
 
     /**
-     * Cria o elemento host isolado com Shadow DOM (mode: 'open') e injeta o CSS encapsulado.
+     * Cria o elemento host isolado com Shadow DOM e injeta o CSS encapsulado.
      * @returns {void}
      */
     criarHostShadowDom() {
@@ -128,7 +162,8 @@
           aoPararLeitura: () => this.encerrarLeituraCompleta(),
           aoVoltarSentenca: () => this.irParaSentencaAnterior(),
           aoAvancarSentenca: () => this.irParaProximaSentenca(),
-          aoAlterarVelocidade: (novaVelocidade) => this.alterarVelocidadeEmTempoReal(novaVelocidade),
+          aoAlterarVelocidade: (novaVelocidade) =>
+            this.alterarVelocidadeEmTempoReal(novaVelocidade),
           aoAlterarVoz: (novaVoz) => this.alterarVozDuranteLeitura(novaVoz),
           aoAlterarFiltroIdioma: (novoIdioma) => {
             this.configuracaoAtual.idiomaFiltro = novoIdioma;
@@ -138,7 +173,29 @@
             this.configuracaoAtual.posicaoMiniPlayer = posicao;
             this.repositorioConfiguracao.salvarPosicaoMiniPlayer(posicao);
           },
-          aoDefinirModoPrivacidade: (decisao) => this.aplicarDecisaoPrivacidade(decisao)
+          aoDefinirModoPrivacidade: (decisao) => this.aplicarDecisaoPrivacidade(decisao),
+          aoPrevisualizarVoz: (nomeVoz) => this.reproduzirPreviaDeVoz(nomeVoz),
+          aoOcultarPlayerNaPagina: () => {
+            this.configuracaoAtual.exibirMiniPlayerFlutuante = false;
+            this.repositorioConfiguracao.salvarExibirMiniPlayerFlutuante(false);
+          },
+          aoAbrirConfiguracoes: () => {
+            if (typeof chrome !== 'undefined' && chrome.runtime) {
+              if (typeof chrome.runtime.openOptionsPage === 'function') {
+                try {
+                  chrome.runtime.openOptionsPage();
+                  return;
+                } catch {
+                  // Fallback para envio de mensagem ao Background
+                }
+              }
+              chrome.runtime
+                .sendMessage({
+                  tipoMensagem: CONSTANTES_SISTEMA.TIPOS_MENSAGEM.ABRIR_CONFIGURACOES
+                })
+                .catch(() => {});
+            }
+          }
         });
       }
 
@@ -153,10 +210,146 @@
     }
 
     /**
-     * Registra listeners de seleção de texto na página e mensagens do Service Worker.
+     * Escuta mudanças nas configurações salvas pelo Popup para atualizar voz, velocidade,
+     * visibilidade do player e cores de highlight em tempo real.
+     * @returns {void}
+     */
+    registrarSincronizacaoReativaDeConfiguracoes() {
+      if (
+        !this.repositorioConfiguracao ||
+        typeof this.repositorioConfiguracao.aoMudarConfiguracao !== 'function'
+      ) {
+        return;
+      }
+
+      const chaves = CONSTANTES_SISTEMA.CHAVES_STORAGE;
+      this.repositorioConfiguracao.aoMudarConfiguracao((mudancas) => {
+        if (mudancas[chaves.ESTILO_HIGHLIGHT]) {
+          const novoEstilo = mudancas[chaves.ESTILO_HIGHLIGHT].newValue;
+          this.configuracaoAtual.estiloHighlight = {
+            ...CONSTANTES_SISTEMA.ESTILO_HIGHLIGHT_PADRAO,
+            ...(novoEstilo || {})
+          };
+          if (
+            this.gerenciadorHighlight &&
+            typeof this.gerenciadorHighlight.aplicarEstiloPersonalizado === 'function'
+          ) {
+            this.gerenciadorHighlight.aplicarEstiloPersonalizado(
+              this.configuracaoAtual.estiloHighlight
+            );
+          }
+        }
+
+        if (mudancas[chaves.EXIBIR_MINI_PLAYER_FLUTUANTE]) {
+          const exibir = Boolean(mudancas[chaves.EXIBIR_MINI_PLAYER_FLUTUANTE].newValue);
+          this.configuracaoAtual.exibirMiniPlayerFlutuante = exibir;
+          if (this.miniPlayer) {
+            if (exibir && this.estadoAtual !== 'INATIVO') {
+              this.miniPlayer.exibir(this.configuracaoAtual, false);
+              this.sincronizarInterfaceMiniPlayer();
+            } else if (!exibir) {
+              this.miniPlayer.ocultar();
+            }
+          }
+        }
+
+        if (mudancas[chaves.EXIBIR_BOTAO_FLUTUANTE_SELECAO]) {
+          const exibirBotao = Boolean(
+            mudancas[chaves.EXIBIR_BOTAO_FLUTUANTE_SELECAO].newValue
+          );
+          this.configuracaoAtual.exibirBotaoFlutuanteSelecao = exibirBotao;
+          if (!exibirBotao && this.botaoFlutuante) {
+            this.botaoFlutuante.ocultar();
+          }
+        }
+
+        if (mudancas[chaves.MODO_LEITURA_CONTINUA]) {
+          this.configuracaoAtual.modoLeituraContinua = Boolean(
+            mudancas[chaves.MODO_LEITURA_CONTINUA].newValue
+          );
+        }
+
+        if (mudancas[chaves.VELOCIDADE_REPRODUCAO]) {
+          const novaVelocidade = Number(mudancas[chaves.VELOCIDADE_REPRODUCAO].newValue);
+          const velocidadeMinima = CONSTANTES_SISTEMA.VELOCIDADE_MINIMA || 0.75;
+          const velocidadeMaxima = CONSTANTES_SISTEMA.VELOCIDADE_MAXIMA || 2.0;
+          if (
+            Number.isFinite(novaVelocidade) &&
+            novaVelocidade >= velocidadeMinima &&
+            novaVelocidade <= velocidadeMaxima &&
+            novaVelocidade !== this.configuracaoAtual.velocidadeReproducao
+          ) {
+            this.configuracaoAtual.velocidadeReproducao = novaVelocidade;
+            this.reprodutorAudio.definirVelocidade(novaVelocidade);
+            this.motorFallback.definirVelocidade(novaVelocidade);
+            if (
+              this.miniPlayer &&
+              typeof this.miniPlayer.sincronizarSeletoresComConfiguracao === 'function'
+            ) {
+              this.miniPlayer.sincronizarSeletoresComConfiguracao(
+                this.configuracaoAtual
+              );
+            }
+          }
+        }
+
+        if (mudancas[chaves.VOZ_SELECIONADA]) {
+          const novaVoz = mudancas[chaves.VOZ_SELECIONADA].newValue;
+          if (novaVoz && novaVoz !== this.configuracaoAtual.vozSelecionada) {
+            if (
+              this.miniPlayer &&
+              typeof this.miniPlayer.sincronizarSeletoresComConfiguracao === 'function'
+            ) {
+              this.miniPlayer.sincronizarSeletoresComConfiguracao({
+                ...this.configuracaoAtual,
+                vozSelecionada: novaVoz
+              });
+            }
+            this.alterarVozDuranteLeitura(novaVoz);
+          }
+        }
+
+        if (mudancas[chaves.MODO_PRIVACIDADE_VOZ]) {
+          const novoModo = mudancas[chaves.MODO_PRIVACIDADE_VOZ].newValue;
+          if (novoModo && novoModo !== this.configuracaoAtual.modoPrivacidadeVoz) {
+            this.aplicarDecisaoPrivacidade(novoModo);
+          }
+        }
+      });
+    }
+
+    /**
+     * Registra listeners de seleção de texto, clique direito (contextmenu) e mensagens do Background/Popup.
      * @returns {void}
      */
     registrarListenersDeSelecaoEMensagens() {
+      document.addEventListener(
+        'contextmenu',
+        (evento) => {
+          if (
+            evento.target &&
+            evento.target.id === CONSTANTES_SISTEMA.ID_HOST_SHADOW_DOM
+          ) {
+            return;
+          }
+          const pontoCaret =
+            typeof MapeadorSelecaoDom.obterNoEOffsetPorCoordenadas === 'function'
+              ? MapeadorSelecaoDom.obterNoEOffsetPorCoordenadas(
+                  evento.clientX,
+                  evento.clientY
+                )
+              : null;
+          this.ultimoPontoCliqueDireito = {
+            clientX: evento.clientX,
+            clientY: evento.clientY,
+            elementoAlvo: evento.target,
+            noInicial: pontoCaret ? pontoCaret.no : null,
+            offsetInicial: pontoCaret ? pontoCaret.offset : 0
+          };
+        },
+        true
+      );
+
       document.addEventListener('mouseup', (evento) => {
         if (
           evento.target &&
@@ -184,25 +377,99 @@
       });
 
       if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
-        chrome.runtime.onMessage.addListener((mensagem) => {
+        chrome.runtime.onMessage.addListener((mensagem, remetente, enviarResposta) => {
           if (!mensagem || typeof mensagem.tipoMensagem !== 'string') {
-            return;
+            return false;
           }
+
+          const { TIPOS_MENSAGEM } = CONSTANTES_SISTEMA;
+
           if (
-            mensagem.tipoMensagem === CONSTANTES_SISTEMA.TIPOS_MENSAGEM.INICIAR_LEITURA_MENU
+            mensagem.tipoMensagem === TIPOS_MENSAGEM.INICIAR_LEITURA_MENU ||
+            mensagem.tipoMensagem === TIPOS_MENSAGEM.INICIAR_LEITURA_A_PARTIR_DAQUI
           ) {
-            this.iniciarLeituraDaSelecaoAtual();
-          } else if (
-            mensagem.tipoMensagem ===
-            CONSTANTES_SISTEMA.TIPOS_MENSAGEM.ALTERNAR_PAUSA_ATALHO
-          ) {
+            this.iniciarLeituraAPartirDaqui();
+            enviarResposta({ sucesso: true });
+            return false;
+          }
+
+          if (mensagem.tipoMensagem === TIPOS_MENSAGEM.INICIAR_LEITURA_SELECAO_EXATA) {
+            this.iniciarLeituraDaSelecaoAtual({ apenasSelecaoExata: true });
+            enviarResposta({ sucesso: true });
+            return false;
+          }
+
+          if (mensagem.tipoMensagem === TIPOS_MENSAGEM.ALTERNAR_PAUSA_ATALHO) {
             if (this.estadoAtual !== 'INATIVO') {
               this.alternarPausaRetomada();
             } else {
-              this.iniciarLeituraDaSelecaoAtual();
+              this.iniciarLeituraAPartirDaqui();
             }
+            enviarResposta({ sucesso: true });
+            return false;
           }
+
+          if (mensagem.tipoMensagem === TIPOS_MENSAGEM.OBTER_ESTADO_LEITURA_ABA) {
+            enviarResposta(this.obterResumoEstadoLeitura());
+            return false;
+          }
+
+          if (mensagem.tipoMensagem === TIPOS_MENSAGEM.COMANDO_CONTROLE_ABA) {
+            this.executarComandoControleExterno(mensagem.payload || {}).then(() => {
+              enviarResposta(this.obterResumoEstadoLeitura());
+            });
+            return true;
+          }
+
+          return false;
         });
+      }
+    }
+
+    /**
+     * Retorna o resumo do estado atual da leitura na aba para exibição no Popup de Configurações.
+     * @returns {Object}
+     */
+    obterResumoEstadoLeitura() {
+      const totalSentencas = this.mapaSelecaoAtiva
+        ? this.mapaSelecaoAtiva.sentencasMapeadas.length
+        : 0;
+      const sentencaAtiva =
+        this.mapaSelecaoAtiva &&
+        this.mapaSelecaoAtiva.sentencasMapeadas[this.indiceSentencaAtual]
+          ? this.mapaSelecaoAtiva.sentencasMapeadas[this.indiceSentencaAtual].textoSentenca
+          : '';
+
+      return {
+        estadoAtual: this.estadoAtual,
+        indiceSentencaAtual: this.indiceSentencaAtual,
+        totalSentencas,
+        usandoFallbackLocal: this.usandoFallbackLocal,
+        textoSentencaAtual: sentencaAtiva
+      };
+    }
+
+    /**
+     * Executa um comando enviado pelo Popup de Configurações (Play/Pause, Parar, Anterior, Próxima, Ler a partir daqui).
+     * @param {Object} payload
+     * @returns {Promise<void>}
+     */
+    async executarComandoControleExterno(payload) {
+      const acao = payload.acao;
+      if (acao === 'LER_A_PARTIR_DAQUI') {
+        await this.iniciarLeituraAPartirDaqui();
+      } else if (acao === 'ALTERNAR_PAUSA') {
+        if (this.estadoAtual === 'INATIVO') {
+          await this.iniciarLeituraAPartirDaqui();
+        } else {
+          await this.alternarPausaRetomada();
+        }
+      } else if (acao === 'PARAR') {
+        this.encerrarLeituraCompleta();
+      } else if (acao === 'ANTERIOR') {
+        await this.irParaSentencaAnterior();
+      } else if (acao === 'PROXIMA') {
+        await this.irParaProximaSentenca();
       }
     }
 
@@ -231,14 +498,18 @@
     }
 
     /**
-     * Verifica se há seleção de texto válida para exibir o botão flutuante discreto.
-     * Jamais envia qualquer texto para a rede nesta etapa.
+     * Verifica se há seleção de texto (mesmo de 1 única letra ou palavra) para exibir o botão rápido.
      * @returns {void}
      */
     avaliarExibicaoBotaoFlutuante() {
       if (!this.botaoFlutuante || typeof window === 'undefined') {
         return;
       }
+      if (this.configuracaoAtual.exibirBotaoFlutuanteSelecao === false) {
+        this.botaoFlutuante.ocultar();
+        return;
+      }
+
       const selecao = window.getSelection();
       if (!selecao || selecao.rangeCount === 0 || selecao.isCollapsed) {
         this.botaoFlutuante.ocultar();
@@ -246,7 +517,7 @@
       }
 
       const textoSelecionado = selecao.toString().trim();
-      if (textoSelecionado.length < 2) {
+      if (textoSelecionado.length < 1) {
         this.botaoFlutuante.ocultar();
         return;
       }
@@ -267,16 +538,72 @@
     }
 
     /**
-     * Inicia uma nova sessão de leitura a partir da seleção de texto atual na página.
+     * Desfaz a seleção azul nativa do navegador para não contaminar o highlight da leitura.
+     * @param {Selection | null} selecao
+     * @returns {void}
+     */
+    desfazerSelecaoNativaDaPagina(selecao) {
+      try {
+        const selecaoAlvo =
+          selecao || (typeof window !== 'undefined' ? window.getSelection() : null);
+        if (selecaoAlvo && typeof selecaoAlvo.removeAllRanges === 'function') {
+          selecaoAlvo.removeAllRanges();
+        }
+      } catch {
+        // Ignora erro caso a seleção pertença a elemento restrito
+      }
+    }
+
+    /**
+     * Inicia a leitura contínua ("Ler a partir daqui") começando na palavra/letra selecionada,
+     * no parágrafo clicado com o botão direito ou no início do artigo até o fim do conteúdo.
      * @returns {Promise<void>}
      */
-    async iniciarLeituraDaSelecaoAtual() {
+    async iniciarLeituraAPartirDaqui() {
       const selecao = typeof window !== 'undefined' ? window.getSelection() : null;
-      const novoMapaSelecao = MapeadorSelecaoDom.mapearSelecaoAtual(selecao);
+      const novoMapa = MapeadorSelecaoDom.mapearLeituraAPartirDaqui({
+        selecaoNavegador: selecao,
+        pontoClique: this.ultimoPontoCliqueDireito
+      });
+      if (!novoMapa || novoMapa.sentencasMapeadas.length === 0) {
+        return;
+      }
+
+      this.desfazerSelecaoNativaDaPagina(selecao);
+      await this.ativarSessaoDeLeituraComMapa(novoMapa);
+    }
+
+    /**
+     * Inicia uma sessão de leitura a partir da seleção atual na página.
+     * Respeita a preferência `modoLeituraContinua` (por padrão continua lendo até o fim do conteúdo).
+     * @param {Object} [opcoes]
+     * @param {boolean} [opcoes.apenasSelecaoExata=false]
+     * @returns {Promise<void>}
+     */
+    async iniciarLeituraDaSelecaoAtual(opcoes = {}) {
+      const selecao = typeof window !== 'undefined' ? window.getSelection() : null;
+      const continuarAteFim =
+        !opcoes.apenasSelecaoExata &&
+        this.configuracaoAtual.modoLeituraContinua !== false;
+
+      const novoMapaSelecao = MapeadorSelecaoDom.mapearSelecaoAtual(selecao, {
+        continuarAteFimDoConteudo: continuarAteFim
+      });
+
       if (!novoMapaSelecao || novoMapaSelecao.sentencasMapeadas.length === 0) {
         return;
       }
 
+      this.desfazerSelecaoNativaDaPagina(selecao);
+      await this.ativarSessaoDeLeituraComMapa(novoMapaSelecao);
+    }
+
+    /**
+     * Configura o estado da sessão para o mapa de leitura fornecido e inicia a síntese.
+     * @param {Object} novoMapaSelecao
+     * @returns {Promise<void>}
+     */
+    async ativarSessaoDeLeituraComMapa(novoMapaSelecao) {
       this.encerrarLeituraCompleta();
       if (this.botaoFlutuante) {
         this.botaoFlutuante.ocultar();
@@ -284,6 +611,15 @@
 
       this.configuracaoAtual =
         await this.repositorioConfiguracao.carregarConfiguracaoCompleta();
+      if (
+        this.gerenciadorHighlight &&
+        typeof this.gerenciadorHighlight.aplicarEstiloPersonalizado === 'function'
+      ) {
+        this.gerenciadorHighlight.aplicarEstiloPersonalizado(
+          this.configuracaoAtual.estiloHighlight
+        );
+      }
+
       this.mapaSelecaoAtiva = novoMapaSelecao;
       this.idSessaoLeitura = `sessao-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       this.indiceSentencaAtual = 0;
@@ -295,7 +631,21 @@
       this.usandoFallbackLocal =
         modoPrivacidade === CONSTANTES_SISTEMA.MODOS_PRIVACIDADE_VOZ.SOMENTE_LOCAL;
 
-      if (this.miniPlayer) {
+      console.log('[ReadForMe][Orquestrador] Sessão de leitura ativada:', {
+        idSessaoLeitura: this.idSessaoLeitura,
+        vozSelecionada: this.configuracaoAtual.vozSelecionada,
+        velocidadeReproducao: this.configuracaoAtual.velocidadeReproducao,
+        modoPrivacidadeVoz: modoPrivacidade,
+        usandoFallbackLocal: this.usandoFallbackLocal,
+        totalSentencas: novoMapaSelecao.sentencasMapeadas.length
+      });
+
+      // Só exibe o Mini-Player flutuante na página se o usuário tiver ativado essa opção nas configurações
+      // (ou caso o modo de privacidade tenha sido explicitamente configurado como NAO_DEFINIDO)
+      if (
+        this.miniPlayer &&
+        (this.configuracaoAtual.exibirMiniPlayerFlutuante || exigeConsentimentoInicial)
+      ) {
         this.miniPlayer.exibir(this.configuracaoAtual, exigeConsentimentoInicial);
       }
 
@@ -306,6 +656,96 @@
       }
 
       await this.iniciarFluxoDeSinteseEReproducao();
+    }
+
+    /**
+     * Reproduz uma amostra rápida (preview) da voz solicitada.
+     * @param {string} nomeVoz
+     * @returns {Promise<void>}
+     */
+    async reproduzirPreviaDeVoz(nomeVoz) {
+      const vozAlvo = nomeVoz || this.configuracaoAtual.vozSelecionada;
+      const idiomaPrefixo = vozAlvo.slice(0, 5);
+      const textoPrevia =
+        CONSTANTES_SISTEMA.TEXTOS_PREVIA_VOZ[idiomaPrefixo] ||
+        (vozAlvo.startsWith('en-')
+          ? CONSTANTES_SISTEMA.TEXTOS_PREVIA_VOZ['en-US']
+          : CONSTANTES_SISTEMA.TEXTOS_PREVIA_VOZ.PADRAO);
+
+      console.log('[ReadForMe][Orquestrador] Iniciando prévia de voz na página:', {
+        vozAlvo,
+        usandoFallbackLocal: this.usandoFallbackLocal,
+        modoPrivacidadeVoz: this.configuracaoAtual.modoPrivacidadeVoz
+      });
+
+      if (this.audioPreviaAtivo) {
+        try {
+          this.audioPreviaAtivo.pause();
+        } catch {}
+        this.audioPreviaAtivo = null;
+      }
+
+      if (
+        this.usandoFallbackLocal ||
+        typeof chrome === 'undefined' ||
+        !chrome.runtime ||
+        typeof chrome.runtime.sendMessage !== 'function'
+      ) {
+        console.warn(
+          '[ReadForMe][Orquestrador] Prévia usando Fallback Local (modo local ativo ou chrome.runtime indisponível).'
+        );
+        await this.motorFallback.reproduzirSentencaFallback(
+          textoPrevia,
+          vozAlvo,
+          this.configuracaoAtual.velocidadeReproducao
+        );
+        return;
+      }
+
+      try {
+        const resposta = await chrome.runtime.sendMessage({
+          tipoMensagem: CONSTANTES_SISTEMA.TIPOS_MENSAGEM.PREVISUALIZAR_VOZ,
+          payload: { nomeVoz: vozAlvo, textoPrevia }
+        });
+
+        if (resposta && Array.isArray(resposta.logsDiagnostico)) {
+          for (const linhaLog of resposta.logsDiagnostico) {
+            if (resposta.sucesso) {
+              console.log(linhaLog);
+            } else {
+              console.error(linhaLog);
+            }
+          }
+        }
+
+        if (resposta && resposta.sucesso && resposta.audioBase64) {
+          console.log('[ReadForMe][Orquestrador] Áudio de prévia neural recebido com sucesso:', {
+            vozAlvo,
+            tamanhoBase64: resposta.audioBase64.length
+          });
+          await this.reprodutorAudio.reproduzirPacote(
+            { audioBase64: resposta.audioBase64, limitesPalavras: [] },
+            this.configuracaoAtual.velocidadeReproducao
+          );
+          return;
+        }
+
+        console.error(
+          '[ReadForMe ERRO][Orquestrador] Falha na síntese remota da prévia de voz:',
+          resposta ? resposta.motivoErro : 'Sem resposta do Service Worker'
+        );
+      } catch (erroPrevia) {
+        console.error(
+          '[ReadForMe ERRO][Orquestrador] Exceção ao solicitar/reproduzir prévia de voz neural:',
+          erroPrevia
+        );
+      }
+
+      await this.motorFallback.reproduzirSentencaFallback(
+        textoPrevia,
+        vozAlvo,
+        this.configuracaoAtual.velocidadeReproducao
+      );
     }
 
     /**
@@ -392,7 +832,7 @@
         return;
       }
 
-      // Dispara imediatamente a síntese de N e de N+1 em paralelo já na partida
+      // Dispara imediatamente a síntese de N e de N+1/N+2 em paralelo
       const promessaSentencaAtual = this.preCarregarSentencaNoBuffer(indiceAlvo);
       for (
         let deslocamento = 1;
@@ -428,7 +868,11 @@
           pacoteAudio,
           this.configuracaoAtual.velocidadeReproducao
         );
-      } catch {
+      } catch (erroSinteseOuAudio) {
+        console.error(
+          `[ReadForMe ERRO][Orquestrador] Falha ao sintetizar ou reproduzir sentença #${indiceAlvo} (voz=${this.configuracaoAtual.vozSelecionada}):`,
+          erroSinteseOuAudio
+        );
         if (
           this.idSessaoLeitura !== idSessaoCapturado ||
           this.indiceSentencaAtual !== indiceAlvo ||
@@ -436,7 +880,7 @@
         ) {
           return;
         }
-        await this.acionarFallbackParaSentencaAtual();
+        await this.acionarFallbackParaSentencaAtual(erroSinteseOuAudio);
       }
     }
 
@@ -464,7 +908,6 @@
         nomeVoz: this.configuracaoAtual.vozSelecionada
       });
 
-      // Evita UnhandledPromiseRejection quando o pre-fetch futuro falha antes de ser consumido
       promessaSintese.catch(() => {});
 
       this.promessasBufferSentencas.set(indiceSentenca, promessaSintese);
@@ -501,7 +944,11 @@
         try {
           const porta = this.garantirPortaConectada();
           porta.postMessage(mensagemOriginal);
-        } catch {
+        } catch (erroPorta) {
+          console.error(
+            '[ReadForMe ERRO][Orquestrador] Falha ao enviar mensagem na porta Keep-Alive, agendando reidratação:',
+            erroPorta
+          );
           this.agendarReidratacaoDaPorta();
         }
       });
@@ -509,8 +956,6 @@
 
     /**
      * Garante que a porta chrome.runtime.Port esteja conectada ao Service Worker.
-     * Observação Crítica: Abrir a porta NÃO zera tentativasReconexao. O contador só é zerado
-     * quando chega confirmação válida em processarMensagemDaPorta.
      * @returns {chrome.runtime.Port}
      */
     garantirPortaConectada() {
@@ -532,6 +977,7 @@
           this.rejeitarTodasRequisicoesPendentes(new Error('Sessão encerrada.'));
           return;
         }
+        console.warn('[ReadForMe][Orquestrador] Porta Keep-Alive desconectada; reconectando...');
         this.agendarReidratacaoDaPorta();
       });
 
@@ -574,7 +1020,6 @@
 
     /**
      * Processa as respostas enviadas pelo Service Worker através da porta persistente.
-     * Redefine tentativasReconexao para 0 apenas ao receber confirmação válida da sessão atual.
      * @param {Object} mensagemRecebida
      * @returns {void}
      */
@@ -595,7 +1040,6 @@
         return;
       }
 
-      // Descarta respostas pertencentes a sessões antigas já encerradas ou substituídas
       if (payload.idSessaoLeitura !== this.idSessaoLeitura) {
         if (payload.idRequisicao) {
           this.requisicoesPendentesPorta.delete(payload.idRequisicao);
@@ -603,12 +1047,24 @@
         return;
       }
 
-      // A porta confirmou atividade válida na sessão atual: zera o contador de reconexão
       this.tentativasReconexao = 0;
       clearTimeout(this.idTimeoutReconexao);
 
       if (tipoMensagem === CONSTANTES_SISTEMA.TIPOS_MENSAGEM.HEARTBEAT_CONFIRMADO) {
         return;
+      }
+
+      if (Array.isArray(payload.logsDiagnostico)) {
+        const ehFalha =
+          tipoMensagem === CONSTANTES_SISTEMA.TIPOS_MENSAGEM.FALHA_SINTESE_USAR_FALLBACK ||
+          tipoMensagem === CONSTANTES_SISTEMA.TIPOS_MENSAGEM.FALHA_SINTESE;
+        for (const linhaLog of payload.logsDiagnostico) {
+          if (ehFalha) {
+            console.error(linhaLog);
+          } else {
+            console.log(linhaLog);
+          }
+        }
       }
 
       const registroPendente = this.localizarERemoverRequisicaoPendente(payload);
@@ -617,6 +1073,9 @@
       }
 
       if (tipoMensagem === CONSTANTES_SISTEMA.TIPOS_MENSAGEM.PACOTE_AUDIO_PRONTO) {
+        console.log(
+          `[ReadForMe][Orquestrador] PACOTE_AUDIO_PRONTO recebido para sentença #${payload.indiceSentenca} (voz=${payload.nomeVoz || this.configuracaoAtual.vozSelecionada}).`
+        );
         registroPendente.resolver({
           audioBase64: payload.audioBase64,
           limitesPalavras: payload.limitesPalavras || []
@@ -628,6 +1087,10 @@
         tipoMensagem === CONSTANTES_SISTEMA.TIPOS_MENSAGEM.FALHA_SINTESE_USAR_FALLBACK ||
         tipoMensagem === CONSTANTES_SISTEMA.TIPOS_MENSAGEM.FALHA_SINTESE
       ) {
+        console.error(
+          `[ReadForMe ERRO][Orquestrador] Service Worker reportou falha de síntese na sentença #${payload.indiceSentenca}:`,
+          payload.motivoErro
+        );
         registroPendente.rejeitar(
           new Error(payload.motivoErro || 'Falha na síntese remota.')
         );
@@ -666,6 +1129,9 @@
      * @returns {void}
      */
     iniciarFallbackParaRequisicoesPendentes() {
+      console.error(
+        '[ReadForMe ERRO][Orquestrador] Limite de reconexões da porta excedido; comutando para fallback local.'
+      );
       this.usandoFallbackLocal = true;
       this.rejeitarTodasRequisicoesPendentes(
         new Error('Limite de reconexões da porta excedido; comutando para fallback local.')
@@ -674,12 +1140,17 @@
 
     /**
      * Aciona o motor de contingência (window.speechSynthesis) para a sentença atual.
+     * @param {Error} [erroCausa]
      * @returns {Promise<void>}
      */
-    async acionarFallbackParaSentencaAtual() {
+    async acionarFallbackParaSentencaAtual(erroCausa) {
       if (this.estadoAtual === 'INATIVO' || !this.mapaSelecaoAtiva) {
         return;
       }
+      console.error(
+        `[ReadForMe ERRO][Orquestrador] Acionando Fallback Local (Web Speech API) para a sentença #${this.indiceSentencaAtual}. Causa:`,
+        erroCausa ? erroCausa.message || erroCausa : 'Erro de síntese/reprodução'
+      );
       this.usandoFallbackLocal = true;
       const sentencaAtual =
         this.mapaSelecaoAtiva.sentencasMapeadas[this.indiceSentencaAtual];
@@ -730,6 +1201,7 @@
 
     /**
      * Chamado quando a sentença atual termina de tocar para avançar imediatamente à próxima.
+     * Se atingir o fim das sentenças atuais no modo contínuo, verifica se o DOM recebeu novos parágrafos.
      * @returns {void}
      */
     avancarAutomaticamenteParaProximaSentenca() {
@@ -738,6 +1210,14 @@
       }
       const proximoIndice = this.indiceSentencaAtual + 1;
       if (proximoIndice >= this.mapaSelecaoAtiva.sentencasMapeadas.length) {
+        if (
+          typeof this.mapaSelecaoAtiva.tentarExpandirConteudoDinamico === 'function' &&
+          this.mapaSelecaoAtiva.tentarExpandirConteudoDinamico() &&
+          proximoIndice < this.mapaSelecaoAtiva.sentencasMapeadas.length
+        ) {
+          this.reproduzirSentencaPorIndice(proximoIndice);
+          return;
+        }
         this.encerrarLeituraCompleta();
         return;
       }
@@ -789,11 +1269,19 @@
      * @returns {Promise<void>}
      */
     async irParaProximaSentenca() {
-      if (
-        !this.mapaSelecaoAtiva ||
-        this.indiceSentencaAtual >= this.mapaSelecaoAtiva.sentencasMapeadas.length - 1
-      ) {
+      if (!this.mapaSelecaoAtiva) {
         return;
+      }
+      if (
+        this.indiceSentencaAtual >=
+        this.mapaSelecaoAtiva.sentencasMapeadas.length - 1
+      ) {
+        if (
+          typeof this.mapaSelecaoAtiva.tentarExpandirConteudoDinamico !== 'function' ||
+          !this.mapaSelecaoAtiva.tentarExpandirConteudoDinamico()
+        ) {
+          return;
+        }
       }
       this.reprodutorAudio.pararELimpar();
       this.motorFallback.pararELimpar();
@@ -819,13 +1307,22 @@
      */
     async alterarVozDuranteLeitura(novaVoz) {
       this.configuracaoAtual.vozSelecionada = novaVoz;
+      this.usandoFallbackLocal =
+        this.configuracaoAtual.modoPrivacidadeVoz ===
+        CONSTANTES_SISTEMA.MODOS_PRIVACIDADE_VOZ.SOMENTE_LOCAL;
+
+      console.log('[ReadForMe][Orquestrador] Alterando voz selecionada:', {
+        novaVoz,
+        estadoAtual: this.estadoAtual,
+        modoPrivacidadeVoz: this.configuracaoAtual.modoPrivacidadeVoz,
+        usandoFallbackLocal: this.usandoFallbackLocal
+      });
 
       if (this.estadoAtual === 'INATIVO') {
         await this.repositorioConfiguracao.salvarVozSelecionada(novaVoz);
         return;
       }
 
-      // Rotaciona o idSessaoLeitura sincronamente antes de cancelar a sessão anterior
       this.notificarCancelamentoAoBackground();
       this.idSessaoLeitura = `sessao-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -835,7 +1332,7 @@
       this.rejeitarTodasRequisicoesPendentes(new Error('Troca de voz pelo usuário.'));
 
       await this.repositorioConfiguracao.salvarVozSelecionada(novaVoz);
-      await this.reproduzirSentencaPorIndice(this.indiceSentencaAtual);
+      await this.iniciarFluxoDeSinteseEReproducao();
     }
 
     /**
@@ -965,7 +1462,6 @@
 
   escopoGlobal.ReadForMe.OrquestradorLeituraContent = OrquestradorLeituraContent;
 
-  // Inicializa automaticamente apenas quando injetado em página real do navegador (não durante import em testes unitários)
   if (
     typeof window !== 'undefined' &&
     typeof document !== 'undefined' &&
