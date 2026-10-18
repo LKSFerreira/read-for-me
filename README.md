@@ -19,6 +19,17 @@ Extensão de leitura de texto (Text-to-Speech) de alta performance para Microsof
 ├── .metadocs/               # Planos de implementação e histórico de entregas
 │   ├── implementation_plan/ # Planos técnicos em andamento
 │   └── implemented/         # Entregas concluídas e validadas
+├── assets/
+│   └── icons/               # Ícones oficiais da extensão (SVG e PNGs 16/32/48/128/300px)
+├── docs/
+│   └── tutorial_teste_validacao.md # Guia completo de testes, auditoria e publicação
+├── src/
+│   ├── shared/              # Constantes e utilitários puros (SSML, Base64, tempo)
+│   ├── background/          # Service Worker MV3, cliente WebSocket Edge TTS e token DRM
+│   └── content/             # Orquestrador, DOM Range, Highlight API, Áudio e UI Shadow DOM
+├── tests/                   # Suíte de testes unitários e de integração (Vitest + jsdom)
+├── manifest.json            # Manifesto Chromium Manifest V3 (mínimo 116+)
+├── package.json             # Scripts de teste e dependências de desenvolvimento
 ├── AGENTS.md                # Adaptador mestre de diretrizes e perfis de execução
 ├── PRD.md                   # Requisitos de Produto e Arquitetura da Extensão
 ├── README.md                # Apresentação do projeto e guia de uso
@@ -26,12 +37,17 @@ Extensão de leitura de texto (Text-to-Speech) de alta performance para Microsof
 └── HISTORY.md               # Histórico cronológico de alterações
 ```
 
-## 🛠️ Como Carregar a Extensão em Desenvolvimento
+## 🛠️ Como Carregar e Testar a Extensão
 
-1. Abra seu navegador baseado em Chromium (**Microsoft Edge** em `edge://extensions` ou **Brave** em `brave://extensions`).
-2. Ative o **Modo do Desenvolvedor** (*Developer Mode*).
-3. Clique em **Carregar sem compactação** (*Load unpacked*) e selecione a pasta raiz da extensão (onde residirá o `manifest.json`).
-4. Selecione um trecho de texto em uma página web e acione a leitura pelo menu de contexto ou pelo botão flutuante.
+1. Execute a suíte de testes automatizados:
+   ```bash
+   npm test
+   ```
+2. Abra seu navegador baseado em Chromium (**Microsoft Edge** em `edge://extensions` ou **Brave** em `brave://extensions`).
+3. Ative o **Modo do Desenvolvedor** (*Developer Mode*).
+4. Clique em **Carregar sem compactação** (*Load unpacked*) e selecione a pasta raiz do repositório (onde reside o `manifest.json`).
+5. Selecione um trecho de texto em uma página web e acione a leitura pelo botão flutuante **"Ler"** ou pelo menu de contexto **"Ler seleção com Read For Me"**.
+6. Consulte o guia detalhado em [docs/tutorial_teste_validacao.md](docs/tutorial_teste_validacao.md) para o roteiro completo de validação manual e empacotamento para as lojas oficiais.
 
 ## 🤖 Operação com Agentes
 
