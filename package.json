@@ -1,0 +1,17 @@
+{
+  "name": "read-for-me",
+  "version": "0.0.1",
+  "description": "Extensão de leitura de texto (Text-to-Speech) de alta performance para Microsoft Edge e Brave (Manifest V3).",
+  "private": true,
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "devDependencies": {
+    "jsdom": "^30.1.3",
+    "vitest": "^5.0.5"
+  }
+}

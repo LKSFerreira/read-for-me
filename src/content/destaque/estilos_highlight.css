@@ -1,0 +1,13 @@
+/* Estilos nativos não-destrutivos para a CSS Custom Highlight API */
+::highlight(leitura-frase-ativa) {
+  background-color: rgba(56, 189, 248, 0.22);
+  color: inherit;
+}
+
+::highlight(leitura-palavra-ativa) {
+  background-color: #facc15;
+  color: #0f172a;
+  text-decoration: underline;
+  text-decoration-color: #ca8a04;
+  text-underline-offset: 3px;
+}
