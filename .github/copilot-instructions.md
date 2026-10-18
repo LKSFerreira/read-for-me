@@ -1,6 +1,6 @@
 # Copilot Instructions
 
-> LINGUAGEM_PROJETO: <linguagem>
+> LINGUAGEM_PROJETO: JavaScript/TypeScript
 
 ## Profile
 
@@ -28,6 +28,7 @@ All rules and skills are in `.agents/`. Read the relevant files before taking ac
 
 ## Quick Skill Reference
 
+- `/plan` → `.agents/skills/plan/`
 - `/commit` → `.agents/skills/commit/`
 - `/pr` → `.agents/skills/pr/`
 - `/sync` → `.agents/skills/sync/`

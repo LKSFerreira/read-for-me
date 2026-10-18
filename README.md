@@ -37,4 +37,4 @@ Extensão de leitura de texto (Text-to-Speech) de alta performance para Microsof
 
 - `AGENTS.md`: Diretrizes mestras e contrato de linguagem (`pt-BR`).
 - `.agents/rules/`: Regras de arquitetura, Clean Code, Git e convenções JavaScript/TypeScript.
-- `.agents/skills/`: Ferramentas automatizadas do fluxo (`/sync`, `/feat`, `/commit`, etc.).
+- `.agents/skills/`: Ferramentas automatizadas do fluxo (`/plan`, `/feat`, `/commit`, `/sync`, etc.).

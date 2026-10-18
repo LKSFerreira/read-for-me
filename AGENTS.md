@@ -34,18 +34,25 @@ Read and obey `/.agents/rules/language.md` before taking action. This file uses 
 2. `/.agents/rules/code.md`
 3. `/.agents/rules/workflow.md`
 4. `/.agents/rules/git.md`
-5. `/.agents/rules/docker.md`, when Docker is part of the project
-6. `/.agents/rules/<linguagem>.md`, according to `LINGUAGEM_PROJETO`
+5. `/.agents/rules/javascript.md`
 
 ## Project Language
 
 > LINGUAGEM_PROJETO: JavaScript/TypeScript
 
-Mapping:
+- Active Rule: `/.agents/rules/javascript.md`
 
-- Python -> `/.agents/rules/python.md`
-- Java -> `/.agents/rules/java.md`
-- JavaScript/TypeScript -> `/.agents/rules/javascript.md`
+## Quick Skill Reference
+
+- `/plan` → `.agents/skills/plan/`
+- `/commit` → `.agents/skills/commit/`
+- `/pr` → `.agents/skills/pr/`
+- `/feat` → `.agents/skills/feat/`
+- `/sync` → `.agents/skills/sync/`
+- `/init` → `.agents/skills/init/`
+- `/tests` → `.agents/skills/tests/`
+- `/review` → `.agents/skills/review/`
+- `/graphify` → `.agents/skills/graphify/`
 
 ## Version Control
 
