@@ -1,32 +1,73 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" fill="none">
   <defs>
-    <linearGradient id="fundoGradiente" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#0f172a" />
-      <stop offset="55%" stop-color="#1e293b" />
-      <stop offset="100%" stop-color="#090d16" />
+    <linearGradient id="chassiObsidiana" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#161D2B" />
+      <stop offset="55%" stop-color="#0D121C" />
+      <stop offset="100%" stop-color="#070A10" />
     </linearGradient>
-    <linearGradient id="ondaCiano" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#38bdf8" />
-      <stop offset="100%" stop-color="#0284c7" />
+
+    <linearGradient id="bordaChanfro" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FF5500" stop-opacity="0.65" />
+      <stop offset="45%" stop-color="#FFFFFF" stop-opacity="0.14" />
+      <stop offset="100%" stop-color="#FFB800" stop-opacity="0.35" />
     </linearGradient>
-    <linearGradient id="destaqueOuro" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#facc15" />
-      <stop offset="100%" stop-color="#eab308" />
+
+    <linearGradient id="papelMarfim" x1="88" y1="104" x2="276" y2="408" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FAF7F2" />
+      <stop offset="100%" stop-color="#E6DFD3" />
     </linearGradient>
+
+    <linearGradient id="laranjaEditorial" x1="0" y1="120" x2="0" y2="392" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FF6B1A" />
+      <stop offset="100%" stop-color="#E04400" />
+    </linearGradient>
+
+    <linearGradient id="ouroAcustico" x1="0" y1="96" x2="0" y2="416" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FFD04D" />
+      <stop offset="100%" stop-color="#FF9E00" />
+    </linearGradient>
+
+    <filter id="sombraEditorial" x="-15%" y="-15%" width="135%" height="135%">
+      <feDropShadow dx="0" dy="14" stdDeviation="16" flood-color="#000000" flood-opacity="0.65" />
+    </filter>
   </defs>
 
-  <!-- Base arredondada estilo macOS / Edge Add-ons -->
-  <rect x="24" y="24" width="464" height="464" rx="108" fill="url(#fundoGradiente)" stroke="#38bdf8" stroke-opacity="0.35" stroke-width="8" />
+  <rect x="16" y="16" width="480" height="480" rx="108" fill="url(#chassiObsidiana)" />
+  <rect x="20" y="20" width="472" height="472" rx="104" stroke="url(#bordaChanfro)" stroke-width="5" />
 
-  <!-- Linhas de texto e highlight (lado esquerdo) -->
-  <rect x="96" y="148" width="140" height="24" rx="12" fill="#94a3b8" opacity="0.55" />
-  <rect x="96" y="198" width="176" height="34" rx="10" fill="url(#destaqueOuro)" />
-  <rect x="96" y="256" width="152" height="24" rx="12" fill="#38bdf8" opacity="0.45" />
-  <rect x="96" y="304" width="116" height="24" rx="12" fill="#94a3b8" opacity="0.55" />
-  <rect x="96" y="352" width="144" height="24" rx="12" fill="#94a3b8" opacity="0.35" />
+  <g stroke="#FFFFFF" stroke-opacity="0.035" stroke-width="2">
+    <line x1="64" y1="168" x2="448" y2="168" />
+    <line x1="64" y1="256" x2="448" y2="256" />
+    <line x1="64" y1="344" x2="448" y2="344" />
+    <line x1="256" y1="64" x2="256" y2="448" />
+  </g>
 
-  <!-- Ondas de voz neural (lado direito) -->
-  <rect x="308" y="208" width="22" height="96" rx="11" fill="url(#ondaCiano)" />
-  <rect x="350" y="152" width="22" height="208" rx="11" fill="url(#ondaCiano)" />
-  <rect x="392" y="184" width="22" height="144" rx="11" fill="url(#destaqueOuro)" />
+  <path d="M98 134 C98 118.536 110.536 106 126 106 H248 C267.882 106 284 122.118 284 142 V394 C284 405.046 275.046 414 264 414 H126 C110.536 414 98 401.464 98 386 V134 Z"
+        fill="#242E42" transform="translate(-10, 12)" />
+
+  <g filter="url(#sombraEditorial)">
+    <path d="M88 124 C88 108.536 100.536 96 116 96 H244 C266.091 96 284 113.909 284 136 V400 C284 404.418 280.418 408 276 408 H116 C100.536 408 88 395.464 88 380 V124 Z"
+          fill="url(#papelMarfim)" />
+    <path d="M88 124 C88 108.536 100.536 96 116 96 H140 V128 C140 134.627 134.627 140 128 140 H88 V124 Z"
+          fill="#FF5500" />
+  </g>
+
+  <rect x="122" y="164" width="118" height="18" rx="9" fill="#0B0F17" />
+  <rect x="122" y="202" width="92" height="16" rx="8" fill="#64748B" />
+
+  <rect x="114" y="236" width="194" height="40" rx="12" fill="url(#laranjaEditorial)" />
+  <rect x="126" y="249" width="124" height="14" rx="7" fill="#FAF7F2" />
+  <circle cx="278" cy="256" r="9" fill="#FFB800" />
+
+  <rect x="122" y="296" width="112" height="16" rx="8" fill="#64748B" />
+  <rect x="122" y="332" width="76" height="16" rx="8" fill="#94A3B8" />
+
+  <g filter="url(#sombraEditorial)">
+    <rect x="322" y="168" width="28" height="176" rx="14" fill="url(#laranjaEditorial)" />
+    <rect x="368" y="108" width="30" height="296" rx="15" fill="url(#ouroAcustico)" />
+    <rect x="416" y="188" width="28" height="136" rx="14" fill="url(#laranjaEditorial)" />
+  </g>
+
+  <circle cx="430" cy="128" r="14" fill="#FF5500" />
+  <circle cx="430" cy="128" r="6" fill="#FAF7F2" />
 </svg>

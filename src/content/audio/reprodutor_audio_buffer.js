@@ -1,5 +1,5 @@
 /**
- * Reprodutor de pacotes de áudio MP3 em memória (HTMLAudioElement + Blob URL)
+ * Reprodutor de pacotes de áudio MP3 em memória (HTMLAudioElement + Blob URL com contingência Web Audio API)
  * com sincronização temporal de WordBoundary a 60fps via requestAnimationFrame
  * e alteração de velocidade em tempo real com preservação de tom (preservesPitch).
  */
@@ -28,6 +28,13 @@
       this.ultimoIndicePalavraDestacada = -1;
       this.velocidadeAtual = 1.0;
       this.emReproducao = false;
+      this.aguardandoInicioElementoAudio = false;
+
+      this.contextoAudio = null;
+      this.fonteWebAudioAtiva = null;
+      this.usandoWebAudioApi = false;
+      this.instanteUltimoTickWebAudio = 0;
+      this.posicaoSegundosWebAudio = 0;
 
       this.configurarEventosElementoAudio();
     }
@@ -42,28 +49,47 @@
       }
 
       this.elementoAudio.onended = () => {
-        if (!this.emReproducao) {
+        if (!this.emReproducao || this.usandoWebAudioApi) {
           return;
         }
+        console.log('[ReadForMe][ReprodutorAudioBuffer] Sentença concluída (HTMLAudioElement.onended).');
         this.emReproducao = false;
         this.cancelarLoopSincronizacao();
         this.aoConcluirSentenca();
       };
 
       this.elementoAudio.onerror = () => {
-        if (!this.emReproducao) {
+        const detalheMidia =
+          this.elementoAudio && this.elementoAudio.error
+            ? `code=${this.elementoAudio.error.code}, message=${this.elementoAudio.error.message || 'sem detalhe'}`
+            : 'sem MediaError detalhado';
+        console.error(
+          `[ReadForMe ERRO][ReprodutorAudioBuffer] Evento HTMLAudioElement.onerror disparado (${detalheMidia}).`
+        );
+
+        // Se ainda estamos dentro do await elementoAudio.play(), deixamos o catch de reproduzirPacote
+        // tentar o AudioContext (Web Audio API) antes de abortar a voz neural!
+        if (this.aguardandoInicioElementoAudio) {
+          return;
+        }
+
+        if (!this.emReproducao || this.usandoWebAudioApi) {
           return;
         }
         this.emReproducao = false;
         this.cancelarLoopSincronizacao();
         this.aoOcorrerErroAudio(
-          new Error('Falha ao decodificar ou reproduzir o buffer MP3 da sentença.')
+          new Error(
+            `Falha ao decodificar ou reproduzir o buffer MP3 da sentença (${detalheMidia}).`
+          )
         );
       };
     }
 
     /**
      * Converte uma string Base64 de áudio MP3 em Blob URL e inicia a reprodução.
+     * Caso o HTMLAudioElement falhe (ex.: bloqueio de blob: por CSP media-src da página),
+     * decodifica e reproduz o mesmo áudio MP3 neural via Web Audio API (AudioContext).
      * @param {{audioBase64: string, limitesPalavras: Array}} pacoteSentenca
      * @param {number} velocidadeReproducao
      * @returns {Promise<void>}
@@ -87,6 +113,12 @@
       const bytesMp3 = ReprodutorAudioBuffer.converterBase64ParaUint8Array(
         pacoteSentenca.audioBase64
       );
+      console.log('[ReadForMe][ReprodutorAudioBuffer] Iniciando reprodução de pacote MP3 neural:', {
+        bytesMp3: bytesMp3.byteLength,
+        limitesPalavras: this.limitesPalavrasAtuais.length,
+        velocidade: this.velocidadeAtual
+      });
+
       const blobMp3 = new Blob([bytesMp3], { type: 'audio/mpeg' });
       this.urlObjetoAtual = URL.createObjectURL(blobMp3);
 
@@ -94,9 +126,93 @@
       this.elementoAudio.playbackRate = this.velocidadeAtual;
       this.elementoAudio.preservesPitch = true;
       this.emReproducao = true;
+      this.usandoWebAudioApi = false;
+      this.aguardandoInicioElementoAudio = true;
 
       this.iniciarLoopSincronizacao();
-      await this.elementoAudio.play();
+
+      try {
+        await this.elementoAudio.play();
+        this.aguardandoInicioElementoAudio = false;
+        console.log('[ReadForMe][ReprodutorAudioBuffer] Reproduzindo MP3 neural com sucesso via HTMLAudioElement.');
+      } catch (erroPlayHtmlAudio) {
+        this.aguardandoInicioElementoAudio = false;
+        console.warn(
+          '[ReadForMe][ReprodutorAudioBuffer] HTMLAudioElement.play() falhou (possível bloqueio de blob: por CSP media-src da página). Tentando reproduzir o MP3 neural via Web Audio API (AudioContext)...',
+          erroPlayHtmlAudio
+        );
+
+        if (this. podeUsarWebAudioApi()) {
+          await this.reproduzirViaWebAudioApi(bytesMp3);
+          return;
+        }
+
+        this.emReproducao = false;
+        this.cancelarLoopSincronizacao();
+        throw erroPlayHtmlAudio;
+      }
+    }
+
+    /**
+     * Verifica se o ambiente possui suporte a AudioContext (Web Audio API) real no navegador.
+     * @returns {boolean}
+     */
+    podeUsarWebAudioApi() {
+      if (typeof window === 'undefined') {
+        return false;
+      }
+      const ConstrutorContexto = window.AudioContext || window.webkitAudioContext;
+      return typeof ConstrutorContexto === 'function';
+    }
+
+    /**
+     * Decodifica e reproduz o buffer MP3 diretamente via Web Audio API (imune a bloqueio de CSP media-src para blob:).
+     * @param {Uint8Array} bytesMp3
+     * @returns {Promise<void>}
+     */
+    async reproduzirViaWebAudioApi(bytesMp3) {
+      const ConstrutorContexto = window.AudioContext || window.webkitAudioContext;
+      if (!this.contextoAudio || this.contextoAudio.state === 'closed') {
+        this.contextoAudio = new ConstrutorContexto();
+      }
+      if (this.contextoAudio.state === 'suspended') {
+        await this.contextoAudio.resume();
+      }
+
+      const copiaArrayBuffer = bytesMp3.buffer.slice(
+        bytesMp3.byteOffset,
+        bytesMp3.byteOffset + bytesMp3.byteLength
+      );
+      const audioDecodificado = await this.contextoAudio.decodeAudioData(copiaArrayBuffer);
+
+      const fonteBuffer = this.contextoAudio.createBufferSource();
+      fonteBuffer.buffer = audioDecodificado;
+      if (fonteBuffer.playbackRate) {
+        fonteBuffer.playbackRate.value = this.velocidadeAtual;
+      }
+      fonteBuffer.connect(this.contextoAudio.destination);
+
+      this.fonteWebAudioAtiva = fonteBuffer;
+      this.usandoWebAudioApi = true;
+      this.emReproducao = true;
+      this.posicaoSegundosWebAudio = 0;
+      this.instanteUltimoTickWebAudio = this.contextoAudio.currentTime;
+
+      fonteBuffer.onended = () => {
+        if (this.fonteWebAudioAtiva !== fonteBuffer || !this.emReproducao) {
+          return;
+        }
+        console.log('[ReadForMe][ReprodutorAudioBuffer] Sentença concluída via Web Audio API (onended).');
+        this.fonteWebAudioAtiva = null;
+        this.usandoWebAudioApi = false;
+        this.emReproducao = false;
+        this.cancelarLoopSincronizacao();
+        this.aoConcluirSentenca();
+      };
+
+      this.iniciarLoopSincronizacao();
+      fonteBuffer.start(0);
+      console.log('[ReadForMe][ReprodutorAudioBuffer] Reproduzindo MP3 neural com sucesso via Web Audio API (AudioContext).');
     }
 
     /**
@@ -110,6 +226,9 @@
       if (this.elementoAudio) {
         this.elementoAudio.playbackRate = velocidadeSegura;
       }
+      if (this.fonteWebAudioAtiva && this.fonteWebAudioAtiva.playbackRate) {
+        this.fonteWebAudioAtiva.playbackRate.value = velocidadeSegura;
+      }
     }
 
     /**
@@ -119,6 +238,10 @@
     pausar() {
       this.emReproducao = false;
       this.cancelarLoopSincronizacao();
+      if (this.usandoWebAudioApi && this.contextoAudio && this.contextoAudio.state === 'running') {
+        this.contextoAudio.suspend().catch(() => {});
+        return;
+      }
       if (this.elementoAudio) {
         this.elementoAudio.pause();
       }
@@ -129,6 +252,13 @@
      * @returns {Promise<void>}
      */
     async retomar() {
+      if (this.usandoWebAudioApi && this.contextoAudio) {
+        this.emReproducao = true;
+        await this.contextoAudio.resume();
+        this.instanteUltimoTickWebAudio = this.contextoAudio.currentTime;
+        this.iniciarLoopSincronizacao();
+        return;
+      }
       if (!this.elementoAudio) {
         return;
       }
@@ -144,7 +274,22 @@
      */
     pararELimpar() {
       this.emReproducao = false;
+      this.aguardandoInicioElementoAudio = false;
       this.cancelarLoopSincronizacao();
+
+      if (this.fonteWebAudioAtiva) {
+        const fonteAntiga = this.fonteWebAudioAtiva;
+        this.fonteWebAudioAtiva = null;
+        try {
+          fonteAntiga.onended = null;
+          fonteAntiga.stop();
+          fonteAntiga.disconnect();
+        } catch {
+          // Ignora se já havia parado
+        }
+      }
+      this.usandoWebAudioApi = false;
+
       if (this.elementoAudio) {
         this.elementoAudio.pause();
         this.elementoAudio.removeAttribute('src');
@@ -167,10 +312,23 @@
     iniciarLoopSincronizacao() {
       this.cancelarLoopSincronizacao();
       const verificarTempoAtual = () => {
-        if (!this.emReproducao || !this.elementoAudio) {
+        if (!this.emReproducao) {
           return;
         }
-        const tempoSegundos = this.elementoAudio.currentTime || 0;
+
+        let tempoSegundos = 0;
+        if (this.usandoWebAudioApi && this.contextoAudio) {
+          const agoraContexto = this.contextoAudio.currentTime;
+          const deltaContexto = Math.max(0, agoraContexto - this.instanteUltimoTickWebAudio);
+          this.instanteUltimoTickWebAudio = agoraContexto;
+          this.posicaoSegundosWebAudio += deltaContexto * this.velocidadeAtual;
+          tempoSegundos = this.posicaoSegundosWebAudio;
+        } else if (this.elementoAudio) {
+          tempoSegundos = this.elementoAudio.currentTime || 0;
+        } else {
+          return;
+        }
+
         this.sincronizarPalavraNoTempo(tempoSegundos);
 
         if (typeof requestAnimationFrame === 'function') {

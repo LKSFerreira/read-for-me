@@ -60,33 +60,107 @@
     }
 
     /**
+     * Extrai o nome próprio de um identificador ShortName (ex.: 'pt-BR-AntonioNeural' -> 'antonio').
+     * @param {string} nomeVozPreferida
+     * @returns {string}
+     */
+    static extrairNomeProprioVoz(nomeVozPreferida) {
+      const limpo = String(nomeVozPreferida || '')
+        .replace(/^[a-z]{2,3}-[A-Z]{2,4}-/i, '')
+        .replace(/MultilingualNeural$/i, '')
+        .replace(/Neural$/i, '')
+        .trim()
+        .toLowerCase();
+      return limpo;
+    }
+
+    /**
      * Localiza a melhor voz local equivalente quando a voz neural online não existe no sistema.
      * @param {SpeechSynthesisVoice[]} listaVozesLocais
      * @param {string} nomeVozPreferida
-     * @returns {{ vozEscolhida: SpeechSynthesisVoice | null, idiomaResolvido: string }}
+     * @returns {{ vozEscolhida: SpeechSynthesisVoice | null, idiomaResolvido: string, tomVoz: number }}
      */
     static selecionarMelhorVozEquivalente(listaVozesLocais, nomeVozPreferida) {
       const vozesValidas = Array.isArray(listaVozesLocais) ? listaVozesLocais : [];
-      const idiomaAlvo = (String(nomeVozPreferida || '').match(/^[a-z]{2}-[A-Z]{2}/) || [
-        'pt-BR'
-      ])[0];
+      const textoPreferido = String(nomeVozPreferida || '').trim();
+      const idiomaAlvo = (textoPreferido.match(/^[a-z]{2}-[A-Z]{2}/) || ['pt-BR'])[0];
       const prefixoLingua = idiomaAlvo.split('-')[0].toLowerCase();
       const normalizarTag = (tag) => String(tag || '').replace('_', '-').toLowerCase();
+      const nomeProprio = MotorFallbackWebSpeech.extrairNomeProprioVoz(textoPreferido);
 
-      const correspondenciaExataNome = vozesValidas.find((voz) =>
-        String(voz.name || '')
-          .toLowerCase()
-          .includes(String(nomeVozPreferida || '').toLowerCase())
-      );
-      if (correspondenciaExataNome) {
-        return { vozEscolhida: correspondenciaExataNome, idiomaResolvido: idiomaAlvo };
+      const nomesMasculinos = new Set([
+        'antonio',
+        'duarte',
+        'guy',
+        'christopher',
+        'alvaro',
+        'daniel',
+        'ricardo',
+        'felipe',
+        'jorge',
+        'david',
+        'mark'
+      ]);
+      const ehVozMasculina = nomesMasculinos.has(nomeProprio);
+
+      if (textoPreferido) {
+        const correspondenciaExataNome = vozesValidas.find((voz) =>
+          String(voz.name || '')
+            .toLowerCase()
+            .includes(textoPreferido.toLowerCase())
+        );
+        if (correspondenciaExataNome) {
+          return {
+            vozEscolhida: correspondenciaExataNome,
+            idiomaResolvido: idiomaAlvo,
+            tomVoz: 1.0
+          };
+        }
       }
 
-      const correspondenciaIdiomaRegiao = vozesValidas.find(
+      if (nomeProprio && nomeProprio.length >= 3) {
+        const correspondenciaNomeProprio = vozesValidas.find((voz) => {
+          const nomeVozLocal = String(voz.name || '').toLowerCase();
+          return (
+            nomeVozLocal.includes(nomeProprio) &&
+            normalizarTag(voz.lang).startsWith(prefixoLingua)
+          );
+        });
+        if (correspondenciaNomeProprio) {
+          return {
+            vozEscolhida: correspondenciaNomeProprio,
+            idiomaResolvido: idiomaAlvo,
+            tomVoz: 1.0
+          };
+        }
+      }
+
+      const vozesIdiomaRegiao = vozesValidas.filter(
         (voz) => normalizarTag(voz.lang) === normalizarTag(idiomaAlvo)
       );
-      if (correspondenciaIdiomaRegiao) {
-        return { vozEscolhida: correspondenciaIdiomaRegiao, idiomaResolvido: idiomaAlvo };
+      if (vozesIdiomaRegiao.length > 0) {
+        if (vozesIdiomaRegiao.length > 1 && nomeProprio) {
+          const pistaGenero = ehVozMasculina
+            ? ['daniel', 'antonio', 'ricardo', 'felipe', 'male', 'david', 'mark', 'guy']
+            : ['maria', 'francisca', 'thalita', 'luciana', 'heluga', 'female', 'zira', 'jenny'];
+          const vozPorGenero = vozesIdiomaRegiao.find((voz) => {
+            const nomeLower = String(voz.name || '').toLowerCase();
+            return pistaGenero.some((termo) => nomeLower.includes(termo));
+          });
+          if (vozPorGenero) {
+            return {
+              vozEscolhida: vozPorGenero,
+              idiomaResolvido: idiomaAlvo,
+              tomVoz: nomeProprio === 'thalita' ? 1.05 : 1.0
+            };
+          }
+        }
+        const tomCalculado = ehVozMasculina ? 0.88 : nomeProprio === 'thalita' ? 1.06 : 1.0;
+        return {
+          vozEscolhida: vozesIdiomaRegiao[0],
+          idiomaResolvido: idiomaAlvo,
+          tomVoz: tomCalculado
+        };
       }
 
       const correspondenciaFamiliaLingua = vozesValidas.find((voz) =>
@@ -95,13 +169,18 @@
       if (correspondenciaFamiliaLingua) {
         return {
           vozEscolhida: correspondenciaFamiliaLingua,
-          idiomaResolvido: correspondenciaFamiliaLingua.lang || idiomaAlvo
+          idiomaResolvido: correspondenciaFamiliaLingua.lang || idiomaAlvo,
+          tomVoz: ehVozMasculina ? 0.88 : 1.0
         };
       }
 
       const vozPadraoSistema =
         vozesValidas.find((voz) => voz.default) || vozesValidas[0] || null;
-      return { vozEscolhida: vozPadraoSistema, idiomaResolvido: idiomaAlvo };
+      return {
+        vozEscolhida: vozPadraoSistema,
+        idiomaResolvido: idiomaAlvo,
+        tomVoz: 1.0
+      };
     }
 
     /**
@@ -129,15 +208,29 @@
       this.velocidadeAtual = Number(velocidadeReproducao) || 1.0;
 
       const vozesLocais = await MotorFallbackWebSpeech.obterVozesLocaisProntas();
-      const { vozEscolhida, idiomaResolvido } =
+      const { vozEscolhida, idiomaResolvido, tomVoz } =
         MotorFallbackWebSpeech.selecionarMelhorVozEquivalente(
           vozesLocais,
           nomeVozPreferida
         );
 
+      console.warn(
+        '[ReadForMe][MotorFallbackWebSpeech] Reproduzindo via Web Speech API local (Fallback):',
+        {
+          nomeVozPreferida,
+          vozLocalEscolhida: vozEscolhida ? vozEscolhida.name : 'nenhuma (padrão sistema)',
+          idiomaVozLocal: vozEscolhida ? vozEscolhida.lang : idiomaResolvido,
+          tomVoz,
+          velocidade: this.velocidadeAtual,
+          totalVozesLocaisNoNavegador: vozesLocais.length,
+          nomesVozesLocais: vozesLocais.map((v) => `${v.name} (${v.lang})`)
+        }
+      );
+
       const enunciado = new SpeechSynthesisUtterance(textoSentenca);
       enunciado.lang = idiomaResolvido;
       enunciado.rate = this.velocidadeAtual;
+      enunciado.pitch = typeof tomVoz === 'number' ? tomVoz : 1.0;
       if (vozEscolhida) {
         enunciado.voice = vozEscolhida;
       }

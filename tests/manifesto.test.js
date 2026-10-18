@@ -13,6 +13,15 @@ describe('Validação de Integridade do manifest.json (Chromium Manifest V3)', (
     expect(Number(conteudoManifesto.minimum_chrome_version)).toBeGreaterThanOrEqual(116);
   });
 
+  it('deve declarar action.default_popup e options_ui.page para abertura das configurações', () => {
+    expect(conteudoManifesto.action).toBeDefined();
+    expect(conteudoManifesto.action.default_popup).toBe(
+      'src/popup/popup_configuracoes.html'
+    );
+    expect(conteudoManifesto.options_ui).toBeDefined();
+    expect(conteudoManifesto.options_ui.page).toBe('src/popup/popup_configuracoes.html');
+  });
+
   it('não deve conter esquemas inválidos (wss:// ou ws://) em host_permissions nem activeTab sem uso', () => {
     const permissoesHost = conteudoManifesto.host_permissions || [];
     for (const padrao of permissoesHost) {
@@ -23,8 +32,12 @@ describe('Validação de Integridade do manifest.json (Chromium Manifest V3)', (
     expect(conteudoManifesto.permissions).not.toContain('activeTab');
   });
 
-  it('deve apontar para arquivos de ícones, service_worker, css e content_scripts fisicamente existentes no projeto', () => {
-    const caminhosParaVerificar = [];
+  it('deve apontar para arquivos de ícones, popup, service_worker, css e content_scripts fisicamente existentes no projeto', () => {
+    const caminhosParaVerificar = [
+      'src/popup/popup_configuracoes.html',
+      'src/popup/popup_configuracoes.css',
+      'src/popup/popup_configuracoes.js'
+    ];
 
     if (conteudoManifesto.icons) {
       caminhosParaVerificar.push(...Object.values(conteudoManifesto.icons));
@@ -45,7 +58,6 @@ describe('Validação de Integridade do manifest.json (Chromium Manifest V3)', (
       ).toBe(true);
     }
 
-    // Verifica também o ícone de 300x300 para loja Microsoft Edge Add-ons
     expect(fs.existsSync(path.join(diretorioRaiz, 'assets/icons/icon-300.png'))).toBe(true);
   });
 

@@ -1,19 +1,19 @@
 /**
- * Funções utilitárias puras de manipulação de texto, sanitização SSML com mapa de offsets
- * e alinhamento determinístico de metadados WordBoundary.
+ * Funções utilitárias puras de manipulação de texto, codificação Base64,
+ * sanitização SSML com mapa de offsets e alinhamento determinístico de metadados WordBoundary.
  */
 (function inicializarUtilitariosTexto(escopoGlobal) {
   escopoGlobal.ReadForMe = escopoGlobal.ReadForMe || {};
 
   /**
-   * Extrai dinamicamente a versão do Chromium do User-Agent atual ou retorna versão estável de fallback.
+   * Extrai dinamicamente a versão do Chromium ou retorna a versão estável exigida pelo Sec-MS-GEC v2.
    * @param {string} [userAgentNavegador] - String navigator.userAgent.
-   * @param {string} [versaoPadraoFallback='130.0.2849.68'] - Versão usada caso não detectada.
+   * @param {string} [versaoPadraoFallback='143.0.3650.75'] - Versão usada caso não detectada.
    * @returns {string} Versão completa no formato 'MAJOR.0.BUILD.PATCH'.
    */
   function obterVersaoChromiumDinamica(
     userAgentNavegador = typeof navigator !== 'undefined' ? navigator.userAgent : '',
-    versaoPadraoFallback = '130.0.2849.68'
+    versaoPadraoFallback = '143.0.3650.75'
   ) {
     const cadeiaUserAgent = String(userAgentNavegador || '');
     const correspondenciaEdg = cadeiaUserAgent.match(/Edg\/(\d+\.\d+\.\d+\.\d+)/);
@@ -37,6 +37,24 @@
     return Array.from(bytesAleatorios, (byteAtual) =>
       byteAtual.toString(16).padStart(2, '0')
     ).join('');
+  }
+
+  /**
+   * Converte uma string Base64 para Uint8Array binário.
+   * @param {string} cadeiaBase64
+   * @returns {Uint8Array}
+   */
+  function converterBase64ParaUint8Array(cadeiaBase64) {
+    if (!cadeiaBase64 || typeof cadeiaBase64 !== 'string') {
+      return new Uint8Array(0);
+    }
+    const stringBinaria = atob(cadeiaBase64);
+    const comprimento = stringBinaria.length;
+    const bytes = new Uint8Array(comprimento);
+    for (let indice = 0; indice < comprimento; indice += 1) {
+      bytes[indice] = stringBinaria.charCodeAt(indice);
+    }
+    return bytes;
   }
 
   /**
@@ -107,14 +125,7 @@
 
   /**
    * Localiza com precisão a posição inicial e o comprimento da palavra falada na sentença original.
-   * Combina o TextOffset do protocolo SSML (quando presente) com busca por fronteira de token Unicode.
    * @param {Object} parametrosAlinhamento
-   * @param {string} parametrosAlinhamento.textoSentencaOriginal - Sentença original no DOM.
-   * @param {string} parametrosAlinhamento.textoPalavraEvento - Palavra reportada no WordBoundary.
-   * @param {number} [parametrosAlinhamento.offsetTextoEvento] - TextOffset bruto vindo no JSON do Edge TTS.
-   * @param {number} [parametrosAlinhamento.comprimentoPrefixoSsml=0] - Tamanho do prefixo XML antes do texto.
-   * @param {number[]} [parametrosAlinhamento.mapaIndiceEscapadoParaOriginal=[]] - Mapa de índices SSML -> Original.
-   * @param {number} [parametrosAlinhamento.cursorBuscaCaractere=0] - Posição mínima no texto original já alcançada.
    * @returns {{ indiceInicialCaractere: number, comprimentoPalavra: number, novoCursorBusca: number }}
    */
   function alinharPalavraAoTextoOriginal({
@@ -137,7 +148,6 @@
       };
     }
 
-    // 1. Tentativa primária via TextOffset mapeado da entidade SSML para o texto original
     if (typeof offsetTextoEvento === 'number' && !Number.isNaN(offsetTextoEvento)) {
       const candidatosIndiceEscapado = [];
       if (offsetTextoEvento >= comprimentoPrefixoSsml) {
@@ -169,7 +179,6 @@
       }
     }
 
-    // 2. Busca por token completo respeitando fronteiras de palavras/números Unicode a partir do cursor
     const expressaoTokens = /[\p{L}\p{N}]+(?:[.,'’-][\p{L}\p{N}]+)*/gu;
     expressaoTokens.lastIndex = cursorSeguro;
     const palavraNormalizada = palavraLimpa.toLocaleLowerCase();
@@ -187,7 +196,6 @@
         };
       }
 
-      // Caso o token contenha sub-token numérico/palavra com pontuação interna
       const subTokens = tokenEncontrado.split(/[.,'’-]/);
       if (subTokens.length > 1) {
         let deslocamentoInterno = 0;
@@ -209,7 +217,6 @@
       correspondenciaToken = expressaoTokens.exec(textoOriginal);
     }
 
-    // 3. Fallback apenas para símbolos não-alfabéticos isolados (ex.: "%", "$", "&")
     const eSimboloOuPontuacao = !/^[\p{L}]+$/u.test(palavraLimpa);
     if (eSimboloOuPontuacao) {
       const indiceSubcadeia = textoOriginal
@@ -237,6 +244,7 @@
   const UtilitariosTexto = Object.freeze({
     obterVersaoChromiumDinamica,
     gerarIdentificadorConexaoHex,
+    converterBase64ParaUint8Array,
     escaparTextoParaSsmlComMapa,
     construirEnvelopeSsmlMapeado,
     alinharPalavraAoTextoOriginal

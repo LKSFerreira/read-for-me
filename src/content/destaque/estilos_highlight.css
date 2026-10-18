@@ -1,13 +1,13 @@
-/* Estilos nativos não-destrutivos para a CSS Custom Highlight API */
+/* Estilos base neutros para a CSS Custom Highlight API (sobrescritos dinamicamente pelas preferências do usuário) */
 ::highlight(leitura-frase-ativa) {
-  background-color: rgba(56, 189, 248, 0.22);
+  background-color: rgba(100, 116, 139, 0.14);
   color: inherit;
 }
 
 ::highlight(leitura-palavra-ativa) {
-  background-color: #facc15;
+  background-color: #e2e8f0;
   color: #0f172a;
   text-decoration: underline;
-  text-decoration-color: #ca8a04;
+  text-decoration-color: #64748b;
   text-underline-offset: 3px;
 }

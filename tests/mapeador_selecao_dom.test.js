@@ -6,7 +6,7 @@ import '../src/content/dom/mapeador_selecao_dom.js';
 
 const { MapeadorSelecaoDom } = globalThis.ReadForMe;
 
-describe('MapeadorSelecaoDom — Extração Não-Destrutiva de Ranges e Remapeamento SPA', () => {
+describe('MapeadorSelecaoDom — Extração Não-Destrutiva, Leitura Contínua e Remapeamento SPA', () => {
   beforeEach(() => {
     document.body.innerHTML = '';
   });
@@ -35,11 +35,98 @@ describe('MapeadorSelecaoDom — Extração Não-Destrutiva de Ranges e Remapeam
       fimNegritoItalico
     );
 
-    // Como "negrito " está em <b> e "itálico" está em <i>, devem ser gerados 2 Ranges conectados
     expect(ranges.length).toBe(2);
     expect(ranges.map((r) => r.toString()).join('')).toBe('negrito itálico');
-    // Garante zero mutação no DOM hospedeiro
     expect(container.innerHTML).toBe(htmlOriginalAntes);
+  });
+
+  it('deve continuar lendo todas as sentenças seguintes até o fim do conteúdo ao selecionar apenas uma palavra ou letra', () => {
+    document.body.innerHTML = `
+      <article>
+        <p id="p1">Introdução descartada. Palavra selecionada na primeira frase.</p>
+        <p id="p2">Segunda frase no parágrafo seguinte. Terceira frase final do artigo.</p>
+      </article>
+    `;
+
+    const noTextoP1 = document.getElementById('p1').firstChild;
+    const indicePalavra = noTextoP1.nodeValue.indexOf('Palavra');
+
+    // Seleciona apenas a primeira letra "P" de "Palavra"
+    const rangeUmaLetra = document.createRange();
+    rangeUmaLetra.setStart(noTextoP1, indicePalavra);
+    rangeUmaLetra.setEnd(noTextoP1, indicePalavra + 1);
+
+    const selecao = window.getSelection();
+    selecao.removeAllRanges();
+    selecao.addRange(rangeUmaLetra);
+
+    const mapaContinuo = MapeadorSelecaoDom.mapearSelecaoAtual(selecao, {
+      continuarAteFimDoConteudo: true
+    });
+
+    expect(mapaContinuo).not.toBeNull();
+    expect(mapaContinuo.sentencasMapeadas.map((s) => s.textoSentenca)).toEqual([
+      'Palavra selecionada na primeira frase.',
+      'Segunda frase no parágrafo seguinte.',
+      'Terceira frase final do artigo.'
+    ]);
+  });
+
+  it('deve iniciar "Ler a partir daqui" sem seleção de texto recuando ao início da palavra clicada e lendo até o fim', () => {
+    document.body.innerHTML = `
+      <main>
+        <p id="p-inicio">Parágrafo anterior ignorado.</p>
+        <p id="p-alvo">Começando exatamente aqui. Continuando para o fim.</p>
+        <p id="p-fim">Última frase do documento.</p>
+      </main>
+    `;
+
+    const noTextoAlvo = document.getElementById('p-alvo').firstChild;
+    // Simula clique direito no meio da palavra "exatamente" (offset na letra "t")
+    const offsetMeioDaPalavra = noTextoAlvo.nodeValue.indexOf('exatamente') + 4;
+
+    const selecaoVazia = window.getSelection();
+    selecaoVazia.removeAllRanges();
+
+    const mapa = MapeadorSelecaoDom.mapearLeituraAPartirDaqui({
+      selecaoNavegador: selecaoVazia,
+      pontoClique: {
+        noInicial: noTextoAlvo,
+        offsetInicial: offsetMeioDaPalavra,
+        elementoAlvo: document.getElementById('p-alvo')
+      }
+    });
+
+    expect(mapa).not.toBeNull();
+    expect(mapa.sentencasMapeadas.map((s) => s.textoSentenca)).toEqual([
+      'exatamente aqui.',
+      'Continuando para o fim.',
+      'Última frase do documento.'
+    ]);
+  });
+
+  it('deve buscar e anexar novas sentenças dinamicamente ao encontrar o fim do conteúdo (tentarExpandirConteudoDinamico)', () => {
+    document.body.innerHTML = `<article id="art"><p id="p1">Frase inicial do fluxo.</p></article>`;
+    const noP1 = document.getElementById('p1').firstChild;
+
+    const mapa = MapeadorSelecaoDom.mapearLeituraAPartirDaqui({
+      pontoClique: { noInicial: noP1, offsetInicial: 0 }
+    });
+
+    expect(mapa.sentencasMapeadas).toHaveLength(1);
+
+    // Simula carregamento dinâmico de mais um parágrafo no fim do artigo
+    const novoParagrafo = document.createElement('p');
+    novoParagrafo.textContent = 'Nova frase carregada dinamicamente. Outra frase final.';
+    document.getElementById('art').appendChild(novoParagrafo);
+
+    const expandiu = mapa.tentarExpandirConteudoDinamico();
+    expect(expandiu).toBe(true);
+    expect(mapa.sentencasMapeadas.map((s) => s.textoSentenca)).toEqual([
+      'Frase inicial do fluxo.',
+      'Nova frase carregada dinamicamente.',
+      'Outra frase final.'
+    ]);
   });
 
   it('deve reconstruir automaticamente os Ranges quando uma SPA re-renderiza e desconecta os TextNodes originais', () => {
@@ -57,7 +144,6 @@ describe('MapeadorSelecaoDom — Extração Não-Destrutiva de Ranges e Remapeam
     const mapa = MapeadorSelecaoDom.mapearSelecaoAtual(selecao);
     expect(mapa).not.toBeNull();
 
-    // Simula re-renderização completa de componente React/Vue (desconecta os TextNodes antigos)
     containerSpa.innerHTML = containerSpa.innerHTML;
 
     const segundaSentenca = mapa.sentencasMapeadas[1];

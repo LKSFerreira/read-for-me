@@ -1,6 +1,7 @@
 /**
  * Repositório de persistência e sincronização reativa das preferências do usuário
- * em chrome.storage.local (voz, velocidade, filtro de idioma, posição do player e modo de privacidade).
+ * em chrome.storage.local (voz, velocidade, filtro de idioma, posição do player,
+ * exibição do player/botão, modo de leitura contínua, estilo dos highlights e privacidade).
  */
 (function inicializarRepositorioConfiguracao(escopoGlobal) {
   escopoGlobal.ReadForMe = escopoGlobal.ReadForMe || {};
@@ -17,7 +18,16 @@
           CONSTANTES_SISTEMA.VALORES_PADRAO.IDIOMA_FILTRO,
         [CONSTANTES_SISTEMA.CHAVES_STORAGE.POSICAO_MINI_PLAYER]: null,
         [CONSTANTES_SISTEMA.CHAVES_STORAGE.MODO_PRIVACIDADE_VOZ]:
-          CONSTANTES_SISTEMA.VALORES_PADRAO.MODO_PRIVACIDADE_VOZ
+          CONSTANTES_SISTEMA.VALORES_PADRAO.MODO_PRIVACIDADE_VOZ,
+        [CONSTANTES_SISTEMA.CHAVES_STORAGE.EXIBIR_MINI_PLAYER_FLUTUANTE]:
+          CONSTANTES_SISTEMA.VALORES_PADRAO.EXIBIR_MINI_PLAYER_FLUTUANTE,
+        [CONSTANTES_SISTEMA.CHAVES_STORAGE.EXIBIR_BOTAO_FLUTUANTE_SELECAO]:
+          CONSTANTES_SISTEMA.VALORES_PADRAO.EXIBIR_BOTAO_FLUTUANTE_SELECAO,
+        [CONSTANTES_SISTEMA.CHAVES_STORAGE.MODO_LEITURA_CONTINUA]:
+          CONSTANTES_SISTEMA.VALORES_PADRAO.MODO_LEITURA_CONTINUA,
+        [CONSTANTES_SISTEMA.CHAVES_STORAGE.ESTILO_HIGHLIGHT]: {
+          ...CONSTANTES_SISTEMA.ESTILO_HIGHLIGHT_PADRAO
+        }
       };
       this.ouvintesMudanca = new Set();
       this.registrarOuvinteStorageNativo();
@@ -38,7 +48,7 @@
 
     /**
      * Carrega todas as preferências salvas do usuário aplicando valores padrão seguros.
-     * @returns {Promise<{vozSelecionada: string, velocidadeReproducao: number, idiomaFiltro: string, posicaoMiniPlayer: {x: number, y: number} | null, modoPrivacidadeVoz: string}>}
+     * @returns {Promise<Object>}
      */
     async carregarConfiguracaoCompleta() {
       const chaves = CONSTANTES_SISTEMA.CHAVES_STORAGE;
@@ -51,7 +61,11 @@
             chaves.VELOCIDADE_REPRODUCAO,
             chaves.IDIOMA_FILTRO,
             chaves.POSICAO_MINI_PLAYER,
-            chaves.MODO_PRIVACIDADE_VOZ
+            chaves.MODO_PRIVACIDADE_VOZ,
+            chaves.EXIBIR_MINI_PLAYER_FLUTUANTE,
+            chaves.EXIBIR_BOTAO_FLUTUANTE_SELECAO,
+            chaves.MODO_LEITURA_CONTINUA,
+            chaves.ESTILO_HIGHLIGHT
           ]);
           dadosArmazenados = { ...dadosArmazenados, ...respostaStorage };
         } catch {
@@ -60,9 +74,26 @@
       }
 
       const velocidadeBruta = Number(dadosArmazenados[chaves.VELOCIDADE_REPRODUCAO]);
-      const velocidadeValida = CONSTANTES_SISTEMA.VELOCIDADES_DISPONIVEIS.includes(velocidadeBruta)
-        ? velocidadeBruta
-        : CONSTANTES_SISTEMA.VALORES_PADRAO.VELOCIDADE_REPRODUCAO;
+      const velocidadeMinima = CONSTANTES_SISTEMA.VELOCIDADE_MINIMA || 0.75;
+      const velocidadeMaxima = CONSTANTES_SISTEMA.VELOCIDADE_MAXIMA || 2.0;
+      const velocidadeValida =
+        Number.isFinite(velocidadeBruta) &&
+        velocidadeBruta >= velocidadeMinima &&
+        velocidadeBruta <= velocidadeMaxima
+          ? Math.round(velocidadeBruta * 100) / 100
+          : CONSTANTES_SISTEMA.VALORES_PADRAO.VELOCIDADE_REPRODUCAO;
+
+      const estiloSalvo = dadosArmazenados[chaves.ESTILO_HIGHLIGHT];
+      const ehEstiloLegadoLaranja =
+        estiloSalvo &&
+        (estiloSalvo.temaPreset === 'ambar-editorial' ||
+          String(estiloSalvo.corFrase || '').toLowerCase() === '#ff5500');
+      const estiloHighlightNormalizado = ehEstiloLegadoLaranja
+        ? { ...CONSTANTES_SISTEMA.ESTILO_HIGHLIGHT_PADRAO }
+        : {
+            ...CONSTANTES_SISTEMA.ESTILO_HIGHLIGHT_PADRAO,
+            ...(estiloSalvo && typeof estiloSalvo === 'object' ? estiloSalvo : {})
+          };
 
       return {
         vozSelecionada:
@@ -75,7 +106,20 @@
         posicaoMiniPlayer: dadosArmazenados[chaves.POSICAO_MINI_PLAYER] || null,
         modoPrivacidadeVoz:
           dadosArmazenados[chaves.MODO_PRIVACIDADE_VOZ] ||
-          CONSTANTES_SISTEMA.VALORES_PADRAO.MODO_PRIVACIDADE_VOZ
+          CONSTANTES_SISTEMA.VALORES_PADRAO.MODO_PRIVACIDADE_VOZ,
+        exibirMiniPlayerFlutuante:
+          typeof dadosArmazenados[chaves.EXIBIR_MINI_PLAYER_FLUTUANTE] === 'boolean'
+            ? dadosArmazenados[chaves.EXIBIR_MINI_PLAYER_FLUTUANTE]
+            : CONSTANTES_SISTEMA.VALORES_PADRAO.EXIBIR_MINI_PLAYER_FLUTUANTE,
+        exibirBotaoFlutuanteSelecao:
+          typeof dadosArmazenados[chaves.EXIBIR_BOTAO_FLUTUANTE_SELECAO] === 'boolean'
+            ? dadosArmazenados[chaves.EXIBIR_BOTAO_FLUTUANTE_SELECAO]
+            : CONSTANTES_SISTEMA.VALORES_PADRAO.EXIBIR_BOTAO_FLUTUANTE_SELECAO,
+        modoLeituraContinua:
+          typeof dadosArmazenados[chaves.MODO_LEITURA_CONTINUA] === 'boolean'
+            ? dadosArmazenados[chaves.MODO_LEITURA_CONTINUA]
+            : CONSTANTES_SISTEMA.VALORES_PADRAO.MODO_LEITURA_CONTINUA,
+        estiloHighlight: estiloHighlightNormalizado
       };
     }
 
@@ -95,23 +139,30 @@
     }
 
     /**
-     * Salva a velocidade de reprodução preferida (0.75x a 2.0x).
+     * Salva a velocidade de reprodução preferida (0.75x a 2.00x com precisão de 0.01).
      * @param {number} novaVelocidade
      * @returns {Promise<void>}
      */
     async salvarVelocidadeReproducao(novaVelocidade) {
       const velocidadeNumerica = Number(novaVelocidade);
-      if (!CONSTANTES_SISTEMA.VELOCIDADES_DISPONIVEIS.includes(velocidadeNumerica)) {
+      const velocidadeMinima = CONSTANTES_SISTEMA.VELOCIDADE_MINIMA || 0.75;
+      const velocidadeMaxima = CONSTANTES_SISTEMA.VELOCIDADE_MAXIMA || 2.0;
+      if (
+        !Number.isFinite(velocidadeNumerica) ||
+        velocidadeNumerica < velocidadeMinima ||
+        velocidadeNumerica > velocidadeMaxima
+      ) {
         return;
       }
+      const velocidadeArredondada = Math.round(velocidadeNumerica * 100) / 100;
       await this.gravarChaveValor(
         CONSTANTES_SISTEMA.CHAVES_STORAGE.VELOCIDADE_REPRODUCAO,
-        velocidadeNumerica
+        velocidadeArredondada
       );
     }
 
     /**
-     * Salva o filtro de idioma selecionado no Mini-Player.
+     * Salva o filtro de idioma selecionado.
      * @param {string} codigoIdiomaFiltro
      * @returns {Promise<void>}
      */
@@ -161,6 +212,61 @@
     }
 
     /**
+     * Salva a preferência de exibir ou ocultar o Mini-Player flutuante na página.
+     * @param {boolean} exibir
+     * @returns {Promise<void>}
+     */
+    async salvarExibirMiniPlayerFlutuante(exibir) {
+      await this.gravarChaveValor(
+        CONSTANTES_SISTEMA.CHAVES_STORAGE.EXIBIR_MINI_PLAYER_FLUTUANTE,
+        Boolean(exibir)
+      );
+    }
+
+    /**
+     * Salva a preferência de exibir ou ocultar o botão flutuante ao selecionar texto.
+     * @param {boolean} exibir
+     * @returns {Promise<void>}
+     */
+    async salvarExibirBotaoFlutuanteSelecao(exibir) {
+      await this.gravarChaveValor(
+        CONSTANTES_SISTEMA.CHAVES_STORAGE.EXIBIR_BOTAO_FLUTUANTE_SELECAO,
+        Boolean(exibir)
+      );
+    }
+
+    /**
+     * Salva a preferência de continuar lendo até o fim da página ao iniciar de uma palavra/seleção.
+     * @param {boolean} leituraContinua
+     * @returns {Promise<void>}
+     */
+    async salvarModoLeituraContinua(leituraContinua) {
+      await this.gravarChaveValor(
+        CONSTANTES_SISTEMA.CHAVES_STORAGE.MODO_LEITURA_CONTINUA,
+        Boolean(leituraContinua)
+      );
+    }
+
+    /**
+     * Salva as preferências de cores e estilos do highlight de sentença e palavra.
+     * @param {Object} novoEstiloHighlight
+     * @returns {Promise<void>}
+     */
+    async salvarEstiloHighlight(novoEstiloHighlight) {
+      if (!novoEstiloHighlight || typeof novoEstiloHighlight !== 'object') {
+        return;
+      }
+      const estiloConsolidado = {
+        ...CONSTANTES_SISTEMA.ESTILO_HIGHLIGHT_PADRAO,
+        ...novoEstiloHighlight
+      };
+      await this.gravarChaveValor(
+        CONSTANTES_SISTEMA.CHAVES_STORAGE.ESTILO_HIGHLIGHT,
+        estiloConsolidado
+      );
+    }
+
+    /**
      * Grava um par chave-valor na memória local e no chrome.storage.local.
      * @param {string} chaveStorage
      * @param {*} valor
@@ -178,7 +284,7 @@
     }
 
     /**
-     * Registra callback para reagir a mudanças de configuração feitas em outras abas.
+     * Registra callback para reagir a mudanças de configuração feitas no Popup ou em outras abas.
      * @param {function(Object): void} callbackMudanca
      * @returns {function(): void} Função para cancelar inscrição.
      */

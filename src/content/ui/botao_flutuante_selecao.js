@@ -1,5 +1,6 @@
 /**
- * Botão flutuante discreto exibido dentro da ShadowRoot próximo à seleção de texto do usuário.
+ * Botão flutuante discreto exibido dentro da ShadowRoot próximo à palavra, letra ou trecho selecionado.
+ * Inicia a leitura contínua a partir do ponto selecionado.
  */
 (function inicializarBotaoFlutuanteSelecao(escopoGlobal) {
   escopoGlobal.ReadForMe = escopoGlobal.ReadForMe || {};
@@ -7,7 +8,7 @@
   class BotaoFlutuanteSelecao {
     /**
      * @param {ShadowRoot} raizShadow - ShadowRoot hospedeira da extensão.
-     * @param {function(): void} aoAcionarLeitura - Callback disparado ao clicar em "Ler seleção".
+     * @param {function(): void} aoAcionarLeitura - Callback disparado ao clicar em "Ler a partir daqui".
      */
     constructor(raizShadow, aoAcionarLeitura) {
       this.raizShadow = raizShadow;
@@ -17,7 +18,7 @@
     }
 
     /**
-     * Cria o botão dentro da ShadowRoot com ícone SVG e acessibilidade.
+     * Cria o botão dentro da ShadowRoot com ícone editorial/acústico e acessibilidade.
      * @returns {void}
      */
     construirElemento() {
@@ -25,17 +26,15 @@
       botao.type = 'button';
       botao.className = 'botao-flutuante-selecao';
       botao.hidden = true;
-      botao.setAttribute('aria-label', 'Ler texto selecionado em voz alta');
+      botao.setAttribute('aria-label', 'Ler em voz alta');
       botao.innerHTML = `
         <svg class="icone-onda-audio" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M11 5L6 9H2v6h4l5 4V5z"></path>
-          <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
-          <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+          <polygon points="6 4 20 12 6 20 6 4" fill="currentColor"></polygon>
         </svg>
-        <span>Ler seleção</span>
+        <span>Ouvir</span>
       `;
 
-      // Previne que o mousedown no botão desfaça a seleção de texto da página antes do clique
+      // Previne que o mousedown no botão desfaça a seleção de texto da página antes da captura do Range
       botao.addEventListener('mousedown', (evento) => {
         evento.preventDefault();
         evento.stopPropagation();
@@ -62,7 +61,7 @@
         return;
       }
 
-      const larguraEstimadaBotao = 122;
+      const larguraEstimadaBotao = 148;
       const alturaEstimadaBotao = 34;
       const margemTela = 12;
       const larguraJanela = typeof window !== 'undefined' ? window.innerWidth : 1024;
