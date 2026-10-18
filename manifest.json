@@ -2,8 +2,8 @@
   "manifest_version": 3,
   "name": "Read For Me — Leitor Neural de Alta Performance",
   "short_name": "Read For Me",
-  "version": "1.0.0",
-  "description": "Leitura fluida de textos selecionados com vozes Microsoft Natural Online, highlight não-destrutivo e mini-player em Shadow DOM para Edge e Brave.",
+  "version": "1.1.0",
+  "description": "Leitura contínua a partir de qualquer palavra ou seleção com vozes Microsoft Natural Online, prévia de voz e highlights personalizáveis.",
   "minimum_chrome_version": "116",
   "icons": {
     "16": "assets/icons/icon-16.png",
@@ -11,13 +11,42 @@
     "48": "assets/icons/icon-48.png",
     "128": "assets/icons/icon-128.png"
   },
+  "action": {
+    "default_title": "Read For Me — Configurações e Controle de Voz",
+    "default_popup": "src/popup/popup_configuracoes.html",
+    "default_icon": {
+      "16": "assets/icons/icon-16.png",
+      "32": "assets/icons/icon-32.png",
+      "48": "assets/icons/icon-48.png",
+      "128": "assets/icons/icon-128.png"
+    }
+  },
+  "options_ui": {
+    "page": "src/popup/popup_configuracoes.html",
+    "open_in_tab": true
+  },
   "permissions": [
     "contextMenus",
-    "storage"
+    "storage",
+    "offscreen",
+    "declarativeNetRequest",
+    "declarativeNetRequestWithHostAccess"
   ],
   "host_permissions": [
+    "<all_urls>",
+    "*://speech.platform.bing.com/*",
+    "*://*.bing.com/*",
     "https://speech.platform.bing.com/*"
   ],
+  "declarative_net_request": {
+    "rule_resources": [
+      {
+        "id": "regras_edge_tts",
+        "enabled": true,
+        "path": "src/background/regras_rede_edge_tts.json"
+      }
+    ]
+  },
   "background": {
     "service_worker": "src/background/service_worker.js",
     "type": "module"

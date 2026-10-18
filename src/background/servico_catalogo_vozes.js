@@ -1,4 +1,5 @@
 import '../shared/constantes_sistema.js';
+import { GeradorTokenSecMsGec } from './gerador_token_sec_ms_gec.js';
 
 const { CONSTANTES_SISTEMA } = globalThis.ReadForMe;
 
@@ -18,12 +19,31 @@ export class ServicoCatalogoVozes {
         return cacheExistente;
       }
 
-      const respostaHttp = await fetch(CONSTANTES_SISTEMA.URL_LISTA_VOZES_EDGE, {
+      const tokenSecMsGec = await GeradorTokenSecMsGec.gerarTokenSeguranca(
+        CONSTANTES_SISTEMA.TOKEN_CLIENTE_CONFIAVEL_EDGE
+      );
+      const versaoSecMsGec =
+        CONSTANTES_SISTEMA.VERSAO_SEC_MS_GEC || '2-143.0.3650.75';
+      const separadorQuery = CONSTANTES_SISTEMA.URL_LISTA_VOZES_EDGE.includes('?')
+        ? '&'
+        : '?';
+      const urlAutenticada =
+        `${CONSTANTES_SISTEMA.URL_LISTA_VOZES_EDGE}${separadorQuery}` +
+        `Sec-MS-GEC=${tokenSecMsGec}&Sec-MS-GEC-Version=${versaoSecMsGec}`;
+
+      const respostaHttp = await fetch(urlAutenticada, {
         method: 'GET',
         headers: {
           Accept: 'application/json'
         }
       });
+
+      if (respostaHttp && respostaHttp.headers && typeof respostaHttp.headers.get === 'function') {
+        const dataServidor = respostaHttp.headers.get('date');
+        if (dataServidor) {
+          GeradorTokenSecMsGec.sincronizarRelogioComServidor(dataServidor);
+        }
+      }
 
       if (!respostaHttp.ok) {
         throw new Error(`Falha ao consultar lista de vozes: status HTTP ${respostaHttp.status}`);

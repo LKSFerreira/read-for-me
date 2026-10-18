@@ -90,12 +90,23 @@ describe('ClienteWebSocketEdgeTts — Demultiplexação de Frames, Circuit Break
       }
     };
 
+    let urlCapturadaNoHandshake = '';
+    const ConstrutorAnterior = globalThis.WebSocket;
+    globalThis.WebSocket = class WebSocketComCaptura extends ConstrutorAnterior {
+      constructor(url) {
+        super(url);
+        urlCapturadaNoHandshake = url;
+      }
+    };
+
     const cliente = new ClienteWebSocketEdgeTts();
     const resultado = await cliente.sintetizarSentenca({
       textoSentenca: 'Olá mundo!',
       nomeVoz: 'pt-BR-FranciscaNeural'
     });
 
+    expect(urlCapturadaNoHandshake).toContain('Sec-MS-GEC-Version=2-143.0.3650.75');
+    expect(urlCapturadaNoHandshake).toMatch(/Sec-MS-GEC=[0-9A-F]{16}-[0-9A-F]{64}/);
     expect(resultado.audioBase64).toBeTruthy();
     expect(resultado.limitesPalavras).toEqual([
       {
