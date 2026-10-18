@@ -6,7 +6,7 @@ Este guia apresenta o roteiro completo para validar a extensão **Read For Me** 
 
 ## 1. Validação Automatizada (Suíte Vitest + JSDOM)
 
-O projeto possui uma suíte de testes unitários e de integração em `tests/` que valida o protocolo binário/JSON do WebSocket Edge TTS, o alinhamento de `WordBoundary`, o *Sentence Chunking*, a extração não-destrutiva de `Range`s no DOM, a reidratação do Service Worker e a integridade do `manifest.json`.
+O projeto possui uma suíte de testes unitários e de integração em `tests/` (26 testes em 6 arquivos) que valida o protocolo binário/JSON do WebSocket Edge TTS, o alinhamento de `WordBoundary`, o *Sentence Chunking*, a leitura contínua a partir de qualquer palavra/letra ou clique direito até o fim do conteúdo, a remoção automática da seleção nativa, a personalização de highlights, o arraste do player, a reidratação do Service Worker e a integridade do `manifest.json`.
 
 ### 1.1 Executar todos os testes
 No terminal, na raiz do projeto, execute:
@@ -15,102 +15,66 @@ No terminal, na raiz do projeto, execute:
 npm test
 ```
 
-### 1.2 O que cada arquivo de teste verifica
-| Arquivo de Teste | Escopo Validado |
-|---|---|
-| `tests/manifesto.test.js` | Confirma `manifest_version: 3`, `minimum_chrome_version: "116"`, ausência de esquemas inválidos (`wss://`) em `host_permissions`, existência física de todos os arquivos/ícones e ausência de `import`/`export` top-level nos scripts clássicos do Content Script. |
-| `tests/utilitarios_texto.test.js` | Testa a sanitização XML/SSML com mapa de offsets e o alinhamento de `WordBoundary` com palavras repetidas, artigos curtos (`"a"`, `"o"`, `"de"`), números e entidades escapadas (`&amp;`). |
-| `tests/segmentador_sentencas.test.js` | Testa a divisão de parágrafos em sentenças preservando os índices globais exatos, união de abreviações (`Dr.`, `Sra.`, `art.`, `etc.`) e subdivisão de cláusulas longas (> 280 caracteres). |
-| `tests/mapeador_selecao_dom.test.js` | Valida a criação de múltiplos objetos `Range` atravessando tags inline (`<b>`, `<i>`, `<a>`) sem mutar o DOM, o remapeamento automático quando uma SPA re-renderiza o parágrafo e o bloqueio em áreas sensíveis. |
-| `tests/cliente_websocket_edge_tts.test.js` | Simula o servidor WebSocket da Microsoft enviando frames binários MP3 (`Path:audio`), metadados (`Path:audio.metadata`) e encerramento (`Path:turn.end`), além de validar o *Circuit Breaker* após 2 falhas consecutivas e o cancelamento via `AbortController`. |
-| `tests/orquestrador_leitura_content.test.js` | Valida o pre-fetching concorrente (`N`, `N+1`, `N+2`), o descarte de pacotes obsoletos de sessões antigas ao trocar de voz e a sequência de reidratação da porta (`250ms`, `500ms`, `1000ms`) seguida de fallback local. |
+---
+
+## 2. Como Atualizar / Recarregar a Extensão no Microsoft Edge e no Brave
+
+> **Importante:** Sempre que o `manifest.json` ou o `service_worker.js` recebem novas opções de menu de contexto e Popup, é necessário clicar no botão **Recarregar (🔄)** na página de extensões do navegador e atualizar (`F5`) a aba web onde você vai testar.
+
+1. Abra `edge://extensions` (no Edge) ou `brave://extensions` (no Brave).
+2. No cartão **Read For Me — Leitor Neural de Alta Performance**, clique no ícone **Recarregar (🔄)**.
+3. Fixe o ícone do **Read For Me** na barra de ferramentas do navegador (clicando no ícone de quebra-cabeça de extensões -> **Fixar / Pin**) para abrir facilmente o **Painel de Configurações e Controle**.
+4. Pressione `F5` na página web onde fará os testes.
 
 ---
 
-## 2. Como Carregar a Extensão no Microsoft Edge e no Brave
+## 3. Roteiro Passo a Passo das Funcionalidades e Correções
 
-A extensão foi arquitetada para carregamento imediato diretamente da raiz do repositório (*Load unpacked*), sem necessidade de etapa prévia de *build*.
+### Teste 1: Abrir o Painel de Configurações, Trocar de Voz e Ouvir Prévia (Preview)
+1. Clique no ícone do **Read For Me** na barra superior do navegador (ou clique com o botão direito no ícone da extensão e escolha **Opções**):
+   - **Resultado esperado:** Abre o **Painel de Configurações e Controle** com a nova identidade visual editorial/acústica.
+2. Na seção **Voz e Velocidade**:
+   - Escolha um idioma no filtro (`Todos os idiomas`, `Português (pt-BR)`, `Inglês (en-US)`).
+   - Escolha qualquer voz no seletor **Voz selecionada** (você pode trocar a voz a qualquer momento, antes ou durante uma leitura!).
+   - Clique no botão **"🔊 Ouvir prévia da voz"**:
+   - **Resultado esperado:** A extensão sintetiza e reproduz imediatamente uma frase de demonstração na voz e velocidade selecionadas para você avaliar antes de ler.
 
-### 2.1 No Microsoft Edge
-1. Abra uma nova aba e digite `edge://extensions` na barra de endereços.
-2. No menu lateral esquerdo (ou canto superior direito), ative a chave **Modo do desenvolvedor** (*Developer mode*).
-3. Clique no botão **Carregar sem pacote** (*Load unpacked*).
-4. Selecione a pasta raiz deste repositório (`read-for-me`, onde está localizado o arquivo `manifest.json`).
-5. Confirme que o cartão **Read For Me — Leitor Neural de Alta Performance** aparece ativo e sem erros.
+### Teste 2: "Ler a partir daqui" (Sem precisar selecionar texto ou a partir de 1 palavra/letra)
+1. **Sem selecionar nada:** Em qualquer artigo ou página web, clique com o **botão direito do mouse** diretamente em cima de qualquer palavra no meio de um parágrafo e clique em **"Ler a partir daqui"** no menu de contexto:
+   - **Resultado esperado:** A leitura começa imediatamente a partir daquela palavra exata e **continua buscando e lendo todas as próximas sentenças e parágrafos seguintes até o fim do conteúdo da página**.
+2. **Selecionando apenas uma letra ou uma palavra:** Selecione apenas uma palavra (ou uma única letra) e clique na pílula **"Ler a partir daqui"** (ou use o menu de contexto):
+   - **Resultado esperado:**
+     1. A seleção azul nativa do navegador **é desfeita automaticamente** no instante em que a leitura começa, evitando qualquer contaminação visual sobre o highlight.
+     2. O leitor lê a frase a partir daquela letra/palavra e **continua lendo todas as próximas sentenças até encontrar o fim do conteúdo** (incluindo novos parágrafos carregados dinamicamente).
+3. **Ler apenas um recorte específico (Opcional):** Caso deseje ler estritamente um trecho selecionado e parar, selecione o trecho, clique com o botão direito e escolha **"Ler apenas o trecho selecionado"** (ou desmarque a chave *"Continuar lendo até o fim da página"* nas Configurações).
 
-### 2.2 No Brave Browser
-1. Abra uma nova aba e digite `brave://extensions` na barra de endereços.
-2. No canto superior direito, ative a chave **Modo do desenvolvedor** (*Developer mode*).
-3. Clique no botão **Carregar sem compactação** (*Load unpacked*).
-4. Selecione a pasta raiz deste repositório (`read-for-me`).
-5. Confirme que a extensão aparece ativa com seu ícone oficial.
+### Teste 3: Personalização dos Highlights
+1. Ao iniciar a leitura, o highlight acompanha a fala no texto e o player flutuante é exibido na página (comportamento padrão).
+2. Abra o **Painel de Configurações** clicando no ícone da extensão e vá até a aba **Destaque**:
+   - Teste os temas rápidos e observe a **caixa de pré-visualização ao vivo** dentro do painel e a atualização instantânea na página.
+   - Altere livremente a **Cor da frase**, o controle deslizante de **Intensidade (opacidade)**, a **Cor de fundo da palavra**, a **Cor do texto da palavra** e a opção **Sublinhar**.
 
-> **Nota Importante:** Se você já estava com uma página web aberta antes de carregar ou recarregar a extensão, pressione `F5` na página web para que os Content Scripts sejam injetados.
-
----
-
-## 3. Roteiro Passo a Passo de Validação Funcional
-
-### Teste 1: Ativação por Botão Flutuante e Menu de Contexto
-1. Acesse qualquer artigo ou documentação web (ex.: `https://pt.wikipedia.org` ou uma página de notícias).
-2. Selecione um parágrafo de texto com o mouse:
-   - **Resultado esperado:** Um botão flutuante escuro estilizado (**"Ler seleção"**) surge discretamente próximo ao final da seleção.
-3. Clique no botão **"Ler seleção"** (ou clique com o botão direito sobre o texto selecionado e escolha **"Ler seleção"** no menu de contexto do navegador):
-   - **Resultado esperado:** O **Mini-Player Flutuante** aparece no canto inferior direito da janela.
-
-### Teste 2: Consentimento de Privacidade e Escolha do Motor
-1. Na primeira vez em que a leitura é acionada, o Mini-Player exibe o aviso de privacidade informando que as vozes **Microsoft Natural Online** enviam o trecho selecionado ao serviço de fala da Microsoft:
-   - Clique em **Usar voz natural** para autorizar o motor neural online (WebSocket Edge TTS).
-   - A qualquer momento, clique no botão **Privacidade** no cabeçalho do Mini-Player para alternar entre **Usar voz natural** e **Usar voz local** (`window.speechSynthesis`).
-
-### Teste 3: Sincronização de Highlight Não-Destrutiva (`CSS.highlights`)
-1. Abra o **DevTools** (`F12`) na aba **Elements** e inspecione o parágrafo de texto que você selecionou na página.
-2. Inicie a leitura pelo Mini-Player e observe simultaneamente a página e a árvore HTML no DevTools:
-   - **Na página:** A frase inteira atual recebe um fundo azul translúcido suave (`::highlight(leitura-frase-ativa)`) e cada palavra pronunciada recebe um destaque amarelo forte com sublinhado (`::highlight(leitura-palavra-ativa)`).
-   - **No DevTools (Aba Elements):** Verifique que **nenhuma tag `<span>` ou `<mark>` é criada ou modificada** dentro do parágrafo da página hospedeira.
-
-### Teste 4: Controles do Mini-Player, Pre-fetching e Velocidade em Tempo Real
-1. Selecione um texto com 4 ou mais frases e inicie a leitura:
-   - Observe que a transição da `Frase 1` para a `Frase 2` ocorre instantaneamente, pois as frases `N+1` e `N+2` já foram pré-carregadas em memória.
-2. **Arraste (Draggable):** Segure pelo cabeçalho do Mini-Player (ícone de 6 pontos) e arraste-o para outra posição da tela. Recarregue a página (`F5`), inicie uma nova leitura e confirme que a posição foi memorizada.
-3. **Velocidade em Tempo Real:** No meio de uma frase longa, altere o seletor **Ritmo** de `1.0x` para `1.5x` ou `2.0x`:
-   - **Resultado esperado:** A velocidade da fala muda imediatamente sem reiniciar a frase, sem distorcer o tom da voz e mantendo a sincronização exata do highlight palavra por palavra.
-4. **Filtro de Idioma e Seletor de Voz:**
-   - Verifique que as vozes em **Português (`pt-BR`)** e **Inglês (`en-US`)** aparecem agrupadas no topo do seletor.
-   - Troque a voz durante a leitura (ex.: de `Francisca` para `Antonio` ou `Thalita`): a frase atual reinicia imediatamente com a nova voz escolhida.
-
-### Teste 5: Atalhos de Teclado
-1. Com a leitura em andamento, pressione `Alt+Shift+S`:
-   - **Resultado esperado:** A leitura pausa; pressione `Alt+Shift+S` novamente e a leitura retoma do ponto exato.
-2. Clique dentro do Mini-Player para dar foco a ele e pressione a barra de `Espaço`:
-   - **Resultado esperado:** Alterna entre pausa e reprodução.
-3. Pressione a tecla `Esc`:
-   - **Resultado esperado:** O áudio para imediatamente, os highlights de frase e palavra são removidos da página e o Mini-Player é fechado.
-
-### Teste 6: Resiliência do Service Worker e Fallback Offline
-1. **Teste de Queda do Service Worker:**
-   - Durante a leitura de um texto longo, abra `edge://extensions` ou `brave://extensions` em outra aba e clique no link **Service Worker (Inspecionar visualizações)** ou encerre o Service Worker.
-   - **Resultado esperado:** O Content Script detecta o evento `onDisconnect`, reconecta automaticamente (`250ms` -> `500ms` -> `1000ms`), reenvia as requisições pendentes e mantém a leitura ativa.
-2. **Teste de Fallback Offline (`window.speechSynthesis`):**
-   - No DevTools do Service Worker (aba *Network*), mude para **Offline** (ou escolha **Usar voz local** no botão **Privacidade** do player).
-   - **Resultado esperado:** O badge de status no Mini-Player muda para amarelo (**"Voz Local"**) e a leitura prossegue utilizando a voz local equivalente do sistema operacional.
+### Teste 4: Player Flutuante na Página
+1. O player vem **habilitado por padrão**. Para desativá-lo, abra a aba **Opções** e desmarque **"Player flutuante na página"**:
+   - **Resultado esperado:** O Mini-Player some imediatamente, sem interromper a leitura. Marque novamente para reexibi-lo.
+2. **Arrastar durante a leitura:** Enquanto a leitura está em andamento, clique e segure em **qualquer área livre do Mini-Player** (cabeçalho, lateral, rodapé ou espaço entre botões) e arraste-o pela tela:
+   - **Resultado esperado:** O player acompanha o ponteiro suavemente em tempo real sem travar durante a reprodução e salva a nova posição.
+3. No cabeçalho do Mini-Player, clique no botão **"Ocultar"** se quiser escondê-lo sem interromper a leitura.
 
 ---
 
-## 4. Ícones e Preparação para Publicação nas Lojas Oficiais
+## 4. Nova Identidade Visual e Assets para Lojas (`assets/icons/`)
 
-Os ícones oficiais foram gerados em `assets/icons/` cumprindo os requisitos técnicos da **Chrome Web Store** e do **Microsoft Edge Add-ons Partner Center**:
+Os ícones oficiais foram redesenhados com direção de arte **Editorial / Acústica Analógica** (chassi em Obsidiana Grafite `#0B0F17`, folha empilhada em Papel Marfim `#FAF7F2`, pílula de leitura em Laranja Internacional `#FF5500` projetando-se para fora da página e espectro de frequência em Ouro Acústico `#FFB800`):
 
-- `assets/icons/icon-16.png` (`16x16` px — Barra de ferramentas e menu de contexto)
-- `assets/icons/icon-32.png` (`32x32` px — Telas Retina / Windows)
-- `assets/icons/icon-48.png` (`48x48` px — Página de gerenciamento `extensions`)
-- `assets/icons/icon-128.png` (`128x128` px — Instalação e listagem na Chrome Web Store)
-- `assets/icons/icon-300.png` (`300x300` px — Logotipo de vitrine exigido pelo Microsoft Edge Add-ons)
-- `assets/icons/icon.svg` (Arquivo vetorial matriz em alta resolução)
+- `assets/icons/icon.svg` (Matriz vetorial escalável)
+- `assets/icons/icon-16.png` (`16×16` px — Barra de ferramentas e menu de contexto)
+- `assets/icons/icon-32.png` (`32×32` px — Telas de alta densidade / Windows)
+- `assets/icons/icon-48.png` (`48×48` px — Gerenciador `edge://extensions` e `brave://extensions`)
+- `assets/icons/icon-128.png` (`128×128` px — Instalação e **Google Chrome Web Store**)
+- `assets/icons/icon-300.png` (`300×300` px — Vitrine do **Microsoft Edge Add-ons Partner Center**)
 
-### Como gerar o pacote `.zip` limpo para envio às lojas
-Para empacotar apenas os arquivos de produção da extensão (excluindo `node_modules`, `tests` e metadados de desenvolvimento), execute no PowerShell na raiz do repositório:
-
+### Como gerar o pacote `.zip` para publicação nas lojas
 ```powershell
 Compress-Archive -Path manifest.json, src, assets, README.md -DestinationPath read-for-me-store-package.zip -Force
 ```

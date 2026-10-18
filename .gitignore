@@ -26,3 +26,6 @@ dist-ssr
 *.sw?
 # Local generated template test outputs
 .tmp-init-*
+
+# Chromium unpacked metadata
+_metadata/
