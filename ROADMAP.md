@@ -9,7 +9,7 @@ Construir uma extensão de leitura de texto (Text-to-Speech) de alta performance
 ## 📊 Estado Atual
 
 - [x] Inicialização do repositório, regras multiagente e documentação base (`init`).
-- [ ] Elaboração do plano de implementação detalhado em `.metadocs/implementation_plan/`.
+- [x] Elaboração do plano de implementação detalhado em [.metadocs/implementation_plan/extensao_tts_completa.md](.metadocs/implementation_plan/extensao_tts_completa.md).
 - [ ] Scaffold dos arquivos base da extensão (`manifest.json` e módulos estruturais).
 
 ---
