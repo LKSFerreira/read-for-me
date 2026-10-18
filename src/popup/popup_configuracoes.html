@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Read For Me — Configurações</title>
+  <link rel="stylesheet" href="popup_configuracoes.css" />
+</head>
+<body>
+  <main class="painel-configuracoes">
+    <!-- Cabeçalho Minimalista -->
+    <header class="cabecalho-painel">
+      <div class="marca-identidade">
+        <div class="emblema-logo" aria-hidden="true">
+          <svg width="24" height="24" viewBox="0 0 64 64" fill="none">
+            <rect width="64" height="64" rx="14" fill="#141A26" stroke="#FF5500" stroke-width="2" stroke-opacity="0.5"/>
+            <path d="M15 18H35C38.3137 18 41 20.6863 41 24V46C41 44.3431 39.6569 43 38 43H15V18Z" fill="#F4F0EA"/>
+            <rect x="20" y="25" width="15" height="3" rx="1.5" fill="#0B0F17"/>
+            <rect x="20" y="31" width="11" height="3" rx="1.5" fill="#FF5500"/>
+            <rect x="20" y="37" width="13" height="2.5" rx="1.25" fill="#64748B"/>
+            <rect x="46" y="23" width="3.5" height="18" rx="1.75" fill="#FF5500"/>
+            <rect x="52" y="18" width="3.5" height="28" rx="1.75" fill="#FFB800"/>
+          </svg>
+        </div>
+        <h1 class="titulo-marca">Read For Me</h1>
+      </div>
+
+      <!-- Barra discreta exibida apenas quando há leitura ativa na aba -->
+      <div id="barra-leitura-ativa" class="barra-leitura-ativa" hidden>
+        <span id="badge-estado-aba" class="badge-estado" data-ativo="false">Inativo</span>
+        <button id="botao-iniciar-ou-pausar" type="button" class="botao-icone-status" title="Pausar ou retomar">
+          <span id="icone-acao-principal">⏸</span>
+        </button>
+        <button id="botao-aba-parar" type="button" class="botao-icone-status perigo" title="Parar leitura">
+          ⏹
+        </button>
+      </div>
+    </header>
+
+    <!-- Navegação por Categorias (Abas) -->
+    <nav class="navegacao-categorias" role="tablist" aria-label="Categorias de configuração">
+      <button
+        type="button"
+        role="tab"
+        id="aba-btn-voz"
+        class="botao-aba"
+        data-aba-alvo="voz"
+        aria-selected="true"
+        aria-controls="painel-aba-voz"
+      >
+        Voz
+      </button>
+      <button
+        type="button"
+        role="tab"
+        id="aba-btn-destaque"
+        class="botao-aba"
+        data-aba-alvo="destaque"
+        aria-selected="false"
+        aria-controls="painel-aba-destaque"
+      >
+        Destaque
+      </button>
+      <button
+        type="button"
+        role="tab"
+        id="aba-btn-preferencias"
+        class="botao-aba"
+        data-aba-alvo="preferencias"
+        aria-selected="false"
+        aria-controls="painel-aba-preferencias"
+      >
+        Opções
+      </button>
+    </nav>
+
+    <!-- CATEGORIA 1: VOZ -->
+    <section
+      id="painel-aba-voz"
+      role="tabpanel"
+      aria-labelledby="aba-btn-voz"
+      class="painel-categoria"
+      data-painel-aba="voz"
+    >
+      <div class="cartao-grupo">
+        <div class="campo-formulario">
+          <label for="filtro-idioma">Idioma</label>
+          <select id="filtro-idioma" class="controle-select">
+            <option value="TODOS">Todos os idiomas</option>
+            <option value="pt-BR">Português (Brasil)</option>
+            <option value="en-US">Inglês (EUA)</option>
+          </select>
+        </div>
+
+        <div class="campo-formulario">
+          <div class="linha-rotulo-acao">
+            <label for="seletor-voz">Voz</label>
+            <button id="botao-ouvir-previa" type="button" class="botao-previa">
+              🔊 Ouvir amostra
+            </button>
+          </div>
+          <select id="seletor-voz" class="controle-select"></select>
+        </div>
+      </div>
+
+      <div class="cartao-grupo">
+        <div class="campo-formulario">
+          <div class="linha-rotulo-acao">
+            <label for="velocidade-leitura">Velocidade</label>
+            <span id="valor-velocidade-leitura" class="badge-valor-velocidade">1.00x</span>
+          </div>
+          <input
+            id="velocidade-leitura"
+            type="range"
+            class="slider-velocidade"
+            min="0.75"
+            max="2"
+            step="0.01"
+            value="1"
+            aria-label="Velocidade de leitura de 0.75x até 2.00x"
+          />
+          <div class="escala-velocidade" aria-hidden="true">
+            <span>0.75x</span>
+            <span>1.00x</span>
+            <span>1.50x</span>
+            <span>2.00x</span>
+          </div>
+        </div>
+
+        <div class="campo-formulario">
+          <label for="modo-motor-voz">Motor de síntese</label>
+          <select id="modo-motor-voz" class="controle-select">
+            <option value="REMOTO_AUTORIZADO">Microsoft Natural (Online)</option>
+            <option value="SOMENTE_LOCAL">Voz do Sistema (Offline)</option>
+          </select>
+        </div>
+      </div>
+    </section>
+
+    <!-- CATEGORIA 2: DESTAQUE -->
+    <section
+      id="painel-aba-destaque"
+      role="tabpanel"
+      aria-labelledby="aba-btn-destaque"
+      class="painel-categoria"
+      data-painel-aba="destaque"
+      hidden
+    >
+      <div class="cartao-grupo">
+        <div class="caixa-previa-highlight" aria-label="Pré-visualização do destaque">
+          <span id="previa-sentenca-highlight" class="previa-sentenca">
+            A leitura acompanha cada <span id="previa-palavra-highlight" class="previa-palavra">palavra</span> do texto.
+          </span>
+        </div>
+
+        <div class="barra-presets" role="group" aria-label="Temas de destaque">
+          <button type="button" class="chip-preset" data-preset="ardosia-suave">Ardósia</button>
+          <button type="button" class="chip-preset" data-preset="azul-sereno">Azul</button>
+          <button type="button" class="chip-preset" data-preset="salvia-leitura">Sálvia</button>
+          <button type="button" class="chip-preset" data-preset="foco-sublinhado">Sublinhado</button>
+        </div>
+      </div>
+
+      <div class="cartao-grupo">
+        <label class="linha-switch">
+          <span class="rotulo-switch-principal">Destacar frase</span>
+          <input id="chk-destacar-frase" type="checkbox" checked />
+        </label>
+
+        <div class="grade-cores">
+          <div class="campo-cor">
+            <label for="cor-frase">Cor</label>
+            <input id="cor-frase" type="color" value="#64748b" />
+          </div>
+          <div class="campo-slider">
+            <label for="opacidade-frase">Opacidade (<span id="valor-opacidade-frase">14%</span>)</label>
+            <input id="opacidade-frase" type="range" min="0.05" max="0.45" step="0.01" value="0.14" />
+          </div>
+        </div>
+
+        <div class="divisor-sutil"></div>
+
+        <label class="linha-switch">
+          <span class="rotulo-switch-principal">Destacar palavra</span>
+          <input id="chk-destacar-palavra" type="checkbox" checked />
+        </label>
+
+        <div class="grade-cores tres-colunas">
+          <div class="campo-cor">
+            <label for="cor-fundo-palavra">Fundo</label>
+            <input id="cor-fundo-palavra" type="color" value="#e2e8f0" />
+          </div>
+          <div class="campo-cor">
+            <label for="cor-texto-palavra">Texto</label>
+            <input id="cor-texto-palavra" type="color" value="#0f172a" />
+          </div>
+          <label class="campo-sublinhado">
+            <input id="chk-sublinhar-palavra" type="checkbox" checked />
+            <span>Sublinhar</span>
+          </label>
+        </div>
+      </div>
+    </section>
+
+    <!-- CATEGORIA 3: OPÇÕES -->
+    <section
+      id="painel-aba-preferencias"
+      role="tabpanel"
+      aria-labelledby="aba-btn-preferencias"
+      class="painel-categoria"
+      data-painel-aba="preferencias"
+      hidden
+    >
+      <div class="cartao-grupo lista-opcoes">
+        <label class="linha-switch opcao-item">
+          <div>
+            <span class="rotulo-switch-principal">Leitura contínua</span>
+            <small class="descricao-switch">Seguir para os próximos parágrafos</small>
+          </div>
+          <input id="chk-leitura-continua" type="checkbox" checked />
+        </label>
+
+        <div class="divisor-sutil"></div>
+
+        <label class="linha-switch opcao-item">
+          <div>
+            <span class="rotulo-switch-principal">Atalho ao selecionar</span>
+            <small class="descricao-switch">Mostrar botão "Ouvir" junto à seleção</small>
+          </div>
+          <input id="chk-exibir-botao-selecao" type="checkbox" checked />
+        </label>
+
+        <div class="divisor-sutil"></div>
+
+        <label class="linha-switch opcao-item">
+          <div>
+            <span class="rotulo-switch-principal">Player flutuante na página</span>
+            <small class="descricao-switch">Exibir barra de controles durante a leitura</small>
+          </div>
+          <input id="chk-exibir-mini-player" type="checkbox" checked />
+        </label>
+      </div>
+    </section>
+  </main>
+
+  <script src="../shared/constantes_sistema.js"></script>
+  <script src="../shared/utilitarios_texto.js"></script>
+  <script src="../content/configuracao/repositorio_configuracao.js"></script>
+  <script src="../content/destaque/gerenciador_highlight.js"></script>
+  <script src="../content/audio/motor_fallback_web_speech.js"></script>
+  <script src="popup_configuracoes.js"></script>
+</body>
+</html>
