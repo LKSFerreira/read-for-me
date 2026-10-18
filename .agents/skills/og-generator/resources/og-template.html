@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>SiGER | Gerador de Banner OG Share</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Outfit:wght@600;700;800&display=swap" rel="stylesheet" crossorigin="anonymous">
+    <style>
+        :root {
+            --bg-primary: #060913;
+            --bg-secondary: #0b0f1d;
+            --color-emerald: #53b753;
+            --gradient-text: linear-gradient(135deg, #53b753 0%, #81c784 100%);
+            --gradient-primary: linear-gradient(135deg, #53b753 0%, #2e7d32 100%);
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            background-color: #0b0f19;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Inter', sans-serif;
+            color: #f9fafb;
+        }
+
+        .template-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1.5rem;
+            padding: 2rem;
+        }
+
+        .control-panel {
+            width: 100%;
+            display: flex;
+            justify-content: center;
+        }
+
+        .btn-export {
+            background: linear-gradient(135deg, #53b753 0%, #81c784 100%);
+            color: #060913;
+            border: none;
+            padding: 0.9rem 2.2rem;
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.05rem;
+            font-weight: 800;
+            border-radius: 99px;
+            cursor: pointer;
+            box-shadow: 0 10px 25px rgba(83, 183, 83, 0.25);
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-export:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 15px 30px rgba(83, 183, 83, 0.4);
+            filter: brightness(1.05);
+        }
+
+        .btn-export:active {
+            transform: translateY(0);
+        }
+
+        #banner {
+            width: 1200px;
+            height: 630px;
+            background-color: var(--bg-primary);
+            color: #f9fafb;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 4.5rem;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 30px 60px rgba(0,0,0,0.6);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        /* Efeito de brilho de fundo */
+        #banner::before {
+            content: '';
+            position: absolute;
+            top: -200px;
+            left: -200px;
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, rgba(83, 183, 83, 0.18) 0%, rgba(83, 183, 83, 0) 70%);
+            z-index: 1;
+        }
+        
+        #banner::after {
+            content: '';
+            position: absolute;
+            bottom: -200px;
+            right: -200px;
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, rgba(129, 199, 132, 0.12) 0%, rgba(129, 199, 132, 0) 70%);
+            z-index: 1;
+        }
+
+        .left-content {
+            flex: 1.2;
+            max-width: 600px;
+            z-index: 2;
+        }
+
+        .logo-area {
+            display: flex;
+            align-items: center;
+            gap: 0.85rem;
+            margin-bottom: 2rem;
+        }
+
+        .logo-img {
+            width: 80px;
+            height: 80px;
+            object-fit: contain;
+        }
+
+        .brand-name {
+            font-family: 'Outfit', sans-serif;
+            font-size: 7.5rem;
+            font-weight: 800;
+            letter-spacing: -0.05em;
+            background: var(--gradient-text);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .headline {
+            font-family: 'Outfit', sans-serif;
+            font-size: 3.2rem;
+            font-weight: 800;
+            line-height: 1.15;
+            margin-bottom: 1.5rem;
+            letter-spacing: -0.02em;
+        }
+
+        .text-gradient {
+            background: var(--gradient-text);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .text-telegram {
+            background: linear-gradient(135deg, #0088cc 0%, #229ed9 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .tagline {
+            font-size: 1.25rem;
+            color: #9ca3af;
+            line-height: 1.6;
+            margin-bottom: 2rem;
+        }
+
+        .badge {
+            display: inline-block;
+            background: rgba(83, 183, 83, 0.1);
+            border: 1px solid rgba(83, 183, 83, 0.2);
+            color: #81c784;
+            padding: 0.4rem 0.9rem;
+            border-radius: 99px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            margin-bottom: 1.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .right-content {
+            flex: 0.8;
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            z-index: 2;
+            position: relative;
+            height: 100%;
+        }
+
+        .mockup-container {
+            width: 400px;
+            height: 480px;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .dashboard-mockup {
+            width: 420px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 30px 60px rgba(0,0,0,0.8), 0 0 40px rgba(83, 183, 83, 0.1);
+            transform: perspective(1000px) rotateY(-12deg) rotateX(6deg);
+            position: absolute;
+            top: 80px;
+            right: -20px;
+        }
+
+        .whatsapp-mockup {
+            width: 170px;
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            box-shadow: 0 20px 45px rgba(0,0,0,0.9);
+            position: absolute;
+            bottom: 75px;
+            left: 80px;
+            transform: perspective(1000px) translateZ(25px) rotateY(-4deg) rotateX(2deg);
+            z-index: 3;
+        }
+
+        .telegram-mockup {
+            width: 170px;
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            box-shadow: 0 20px 45px rgba(0,0,0,0.9);
+            position: absolute;
+            bottom: 15px;
+            left: -60px;
+            transform: perspective(1000px) translateZ(50px) rotateY(-8deg) rotateX(4deg);
+            z-index: 4;
+        }
+    </style>
+</head>
+<body>
+    <div class="template-wrapper">
+        <div class="control-panel">
+            <button id="export-btn" class="btn-export">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="feather feather-download"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                Exportar Imagem (1200x630)
+            </button>
+        </div>
+        
+        <div id="banner">
+            <div class="left-content">
+                <div class="logo-area">
+                    <img class="logo-img" src="images/logo.webp" alt="SiGER Logo">
+                    <span class="brand-name">SiGER</span>
+                </div>
+                <span class="badge">Plataforma Multicanal</span>
+                <h1 class="headline">Sua operação no <span class="text-telegram">Telegram</span> e <span class="text-gradient">WhatsApp</span>.</h1>
+                <p class="tagline">Digitalização e automação de fluxos operacionais e recursos de campo em tempo real.</p>
+            </div>
+            <div class="right-content">
+                <div class="mockup-container">
+                    <img class="dashboard-mockup" src="images/mockup_dashboard.webp" alt="SiGER Dashboard">
+                    <img class="whatsapp-mockup" src="images/mockup_whatsapp.webp" alt="SiGER WhatsApp">
+                    <img class="telegram-mockup" src="images/mockup_telegram.webp" alt="SiGER Telegram">
+                </div>
+            </div>
+    </div>
+
+    <!-- Biblioteca para conversão de HTML para Imagem (html-to-image suporta gradientes de texto e CSS3) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html-to-image/1.11.11/html-to-image.min.js"></script>
+    <script>
+        document.getElementById('export-btn').addEventListener('click', () => {
+            const banner = document.getElementById('banner');
+            
+            // Alterar cursor para sinalizar progresso
+            const btn = document.getElementById('export-btn');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = 'Gerando Imagem...';
+            btn.style.opacity = '0.7';
+            btn.disabled = true;
+
+            // Renderizar usando html-to-image que preserva gradientes de texto, canal alfa e efeitos 3D perfeitamente
+            htmlToImage.toBlob(banner, {
+                width: 1200,
+                height: 630,
+                pixelRatio: 2, // Resolução 2x para nitidez perfeita (2400x1260)
+                style: {
+                    width: '1200px',
+                    height: '630px',
+                    margin: '0',
+                    transform: 'none'
+                }
+            })
+            .then(blob => {
+                if (!blob) {
+                    throw new Error('Falha ao gerar o Blob da imagem.');
+                }
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.download = 'og-share.png';
+                link.href = url;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                // Liberar o Blob URL da memória
+                setTimeout(() => {
+                    URL.revokeObjectURL(url);
+                }, 150);
+                
+                // Restaurar botão
+                btn.innerHTML = originalText;
+                btn.style.opacity = '1';
+                btn.disabled = false;
+            })
+            .catch(err => {
+                console.error('Erro crítico na geração da imagem:', err);
+                alert('Erro ao exportar imagem: ' + err.message);
+                btn.innerHTML = originalText;
+                btn.style.opacity = '1';
+                btn.disabled = false;
+            });
+        });
+    </script>
+</body>
+</html>
