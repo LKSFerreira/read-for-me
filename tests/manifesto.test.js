@@ -72,4 +72,13 @@ describe('Validação de Integridade do manifest.json (Chromium Manifest V3)', (
       }
     }
   });
+
+  it('deve habilitar all_frames: true e match_about_blank: true nos content_scripts para suportar iframes e LMS', () => {
+    expect(conteudoManifesto.content_scripts).toBeDefined();
+    expect(conteudoManifesto.content_scripts.length).toBeGreaterThan(0);
+    for (const bloco of conteudoManifesto.content_scripts) {
+      expect(bloco.all_frames).toBe(true);
+      expect(bloco.match_about_blank).toBe(true);
+    }
+  });
 });

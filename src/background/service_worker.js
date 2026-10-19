@@ -39,16 +39,25 @@ export class ControladorBackground {
           return;
         }
 
+        const opcoesEnvio =
+          typeof infoClique.frameId === 'number'
+            ? { frameId: infoClique.frameId }
+            : undefined;
+
         if (
           infoClique.menuItemId === CONSTANTES_SISTEMA.ID_MENU_LER_A_PARTIR_DAQUI
         ) {
           chrome.tabs
-            .sendMessage(abaAlvo.id, {
-              tipoMensagem: CONSTANTES_SISTEMA.TIPOS_MENSAGEM.INICIAR_LEITURA_A_PARTIR_DAQUI
-            })
+            .sendMessage(
+              abaAlvo.id,
+              {
+                tipoMensagem: CONSTANTES_SISTEMA.TIPOS_MENSAGEM.INICIAR_LEITURA_A_PARTIR_DAQUI
+              },
+              opcoesEnvio
+            )
             .catch((erroEnvio) => {
               console.error(
-                '[ReadForMe][Background] Falha ao enviar INICIAR_LEITURA_A_PARTIR_DAQUI para a aba:',
+                '[ReadForMe][Background] Falha ao enviar INICIAR_LEITURA_A_PARTIR_DAQUI para a aba/frame:',
                 erroEnvio
               );
             });
@@ -59,12 +68,16 @@ export class ControladorBackground {
           infoClique.menuItemId === CONSTANTES_SISTEMA.ID_MENU_LER_SELECAO_EXATA
         ) {
           chrome.tabs
-            .sendMessage(abaAlvo.id, {
-              tipoMensagem: CONSTANTES_SISTEMA.TIPOS_MENSAGEM.INICIAR_LEITURA_SELECAO_EXATA
-            })
+            .sendMessage(
+              abaAlvo.id,
+              {
+                tipoMensagem: CONSTANTES_SISTEMA.TIPOS_MENSAGEM.INICIAR_LEITURA_SELECAO_EXATA
+              },
+              opcoesEnvio
+            )
             .catch((erroEnvio) => {
               console.error(
-                '[ReadForMe][Background] Falha ao enviar INICIAR_LEITURA_SELECAO_EXATA para a aba:',
+                '[ReadForMe][Background] Falha ao enviar INICIAR_LEITURA_SELECAO_EXATA para a aba/frame:',
                 erroEnvio
               );
             });

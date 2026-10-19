@@ -474,27 +474,51 @@
     }
 
     /**
+     * Verifica se o contexto de execução da extensão continua ativo e válido no navegador.
+     * @returns {boolean}
+     */
+    possuiContextoExtensaoValido() {
+      try {
+        if (typeof chrome === 'undefined' || !chrome.runtime) {
+          return false;
+        }
+        if (typeof chrome.runtime.connect !== 'function') {
+          return false;
+        }
+        if (chrome.runtime.id !== undefined) {
+          return Boolean(chrome.runtime.id);
+        }
+        return true;
+      } catch {
+        return false;
+      }
+    }
+
+    /**
      * Consulta o catálogo de vozes Microsoft Natural junto ao Service Worker.
      * @returns {void}
      */
     solicitarCatalogoDeVozesAoBackground() {
       if (
-        typeof chrome === 'undefined' ||
-        !chrome.runtime ||
+        !this.possuiContextoExtensaoValido() ||
         typeof chrome.runtime.sendMessage !== 'function'
       ) {
         return;
       }
-      chrome.runtime
-        .sendMessage({
-          tipoMensagem: CONSTANTES_SISTEMA.TIPOS_MENSAGEM.OBTER_CATALOGO_VOZES
-        })
-        .then((resposta) => {
-          if (resposta && Array.isArray(resposta.vozes) && this.miniPlayer) {
-            this.miniPlayer.atualizarCatalogoVozes(resposta.vozes);
-          }
-        })
-        .catch(() => {});
+      try {
+        chrome.runtime
+          .sendMessage({
+            tipoMensagem: CONSTANTES_SISTEMA.TIPOS_MENSAGEM.OBTER_CATALOGO_VOZES
+          })
+          .then((resposta) => {
+            if (resposta && Array.isArray(resposta.vozes) && this.miniPlayer) {
+              this.miniPlayer.atualizarCatalogoVozes(resposta.vozes);
+            }
+          })
+          .catch(() => {});
+      } catch {
+        // Ignora caso contexto da extensão tenha sido invalidado
+      }
     }
 
     /**
@@ -788,8 +812,16 @@
      */
     async iniciarFluxoDeSinteseEReproducao() {
       if (!this.usandoFallbackLocal) {
-        this.garantirPortaConectada();
-        this.iniciarHeartbeatKeepAlive();
+        try {
+          this.garantirPortaConectada();
+          this.iniciarHeartbeatKeepAlive();
+        } catch (erroPorta) {
+          console.warn(
+            '[ReadForMe][Orquestrador] Contexto de extensão indisponível para Keep-Alive, comutando para fallback local:',
+            erroPorta
+          );
+          this.usandoFallbackLocal = true;
+        }
       }
       await this.reproduzirSentencaPorIndice(this.indiceSentencaAtual);
     }
@@ -946,10 +978,14 @@
           porta.postMessage(mensagemOriginal);
         } catch (erroPorta) {
           console.error(
-            '[ReadForMe ERRO][Orquestrador] Falha ao enviar mensagem na porta Keep-Alive, agendando reidratação:',
+            '[ReadForMe ERRO][Orquestrador] Falha ao enviar mensagem na porta Keep-Alive:',
             erroPorta
           );
-          this.agendarReidratacaoDaPorta();
+          if (this.possuiContextoExtensaoValido()) {
+            this.agendarReidratacaoDaPorta();
+          } else {
+            this.iniciarFallbackParaRequisicoesPendentes();
+          }
         }
       });
     }
@@ -963,26 +999,41 @@
         return this.portaBackground;
       }
 
-      const novaPorta = chrome.runtime.connect({
-        name: CONSTANTES_SISTEMA.NOME_PORTA_KEEP_ALIVE
-      });
+      if (!this.possuiContextoExtensaoValido()) {
+        this.iniciarFallbackParaRequisicoesPendentes();
+        throw new Error('Contexto da extensão invalidado.');
+      }
 
-      novaPorta.onMessage.addListener((mensagemRecebida) => {
-        this.processarMensagemDaPorta(mensagemRecebida);
-      });
+      try {
+        const novaPorta = chrome.runtime.connect({
+          name: CONSTANTES_SISTEMA.NOME_PORTA_KEEP_ALIVE
+        });
 
-      novaPorta.onDisconnect.addListener(() => {
+        novaPorta.onMessage.addListener((mensagemRecebida) => {
+          this.processarMensagemDaPorta(mensagemRecebida);
+        });
+
+        novaPorta.onDisconnect.addListener(() => {
+          this.portaBackground = null;
+          if (this.estadoAtual === 'INATIVO') {
+            this.rejeitarTodasRequisicoesPendentes(new Error('Sessão encerrada.'));
+            return;
+          }
+          if (!this.possuiContextoExtensaoValido()) {
+            this.iniciarFallbackParaRequisicoesPendentes();
+            return;
+          }
+          console.warn('[ReadForMe][Orquestrador] Porta Keep-Alive desconectada; reconectando...');
+          this.agendarReidratacaoDaPorta();
+        });
+
+        this.portaBackground = novaPorta;
+        return novaPorta;
+      } catch (erroConexao) {
         this.portaBackground = null;
-        if (this.estadoAtual === 'INATIVO') {
-          this.rejeitarTodasRequisicoesPendentes(new Error('Sessão encerrada.'));
-          return;
-        }
-        console.warn('[ReadForMe][Orquestrador] Porta Keep-Alive desconectada; reconectando...');
-        this.agendarReidratacaoDaPorta();
-      });
-
-      this.portaBackground = novaPorta;
-      return novaPorta;
+        this.iniciarFallbackParaRequisicoesPendentes();
+        throw erroConexao;
+      }
     }
 
     /**
@@ -990,6 +1041,11 @@
      * @returns {void}
      */
     agendarReidratacaoDaPorta() {
+      if (!this.possuiContextoExtensaoValido()) {
+        this.iniciarFallbackParaRequisicoesPendentes();
+        return;
+      }
+
       const atrasosReconexaoMs = CONSTANTES_SISTEMA.ATRASOS_RECONEXAO_PORTA_MS;
       if (this.tentativasReconexao >= atrasosReconexaoMs.length) {
         this.iniciarFallbackParaRequisicoesPendentes();
@@ -1000,7 +1056,10 @@
       this.tentativasReconexao += 1;
       clearTimeout(this.idTimeoutReconexao);
       this.idTimeoutReconexao = setTimeout(() => {
-        if (this.estadoAtual === 'INATIVO') {
+        if (this.estadoAtual === 'INATIVO' || !this.possuiContextoExtensaoValido()) {
+          if (!this.possuiContextoExtensaoValido()) {
+            this.iniciarFallbackParaRequisicoesPendentes();
+          }
           return;
         }
         try {
@@ -1398,7 +1457,11 @@
      * @returns {void}
      */
     notificarCancelamentoAoBackground() {
-      if (!this.portaBackground || !this.idSessaoLeitura) {
+      if (
+        !this.portaBackground ||
+        !this.idSessaoLeitura ||
+        !this.possuiContextoExtensaoValido()
+      ) {
         return;
       }
       try {
@@ -1407,7 +1470,7 @@
           payload: { idSessaoLeitura: this.idSessaoLeitura }
         });
       } catch {
-        // Porta já fechada
+        // Porta já fechada ou contexto invalidado
       }
     }
 
@@ -1418,7 +1481,14 @@
     iniciarHeartbeatKeepAlive() {
       this.pararHeartbeatKeepAlive();
       this.idIntervaloHeartbeat = setInterval(() => {
-        if (this.estadoAtual === 'INATIVO' || !this.portaBackground) {
+        if (
+          this.estadoAtual === 'INATIVO' ||
+          !this.portaBackground ||
+          !this.possuiContextoExtensaoValido()
+        ) {
+          if (!this.possuiContextoExtensaoValido()) {
+            this.pararHeartbeatKeepAlive();
+          }
           return;
         }
         try {

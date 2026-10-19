@@ -411,6 +411,63 @@ describe('OrquestradorLeituraContent — Leitura Contínua, Limpeza de Seleção
     orquestrador.encerrarLeituraCompleta();
   });
 
+  it('deve lidar com contexto de extensão invalidado sem lançar uncaught promise e comutar para fallback local', async () => {
+    globalThis.chrome = {
+      runtime: {
+        id: '', // Simula contexto invalidado no Chromium
+        connect: () => {
+          throw new Error('Extension context invalidated.');
+        },
+        sendMessage: () => {
+          throw new Error('Extension context invalidated.');
+        }
+      }
+    };
+
+    const motorFallbackMock = {
+      reproduzirSentencaFallback: vi.fn().mockResolvedValue(undefined),
+      definirVelocidade: vi.fn(),
+      pararELimpar: vi.fn()
+    };
+
+    const orquestrador = new OrquestradorLeituraContent({
+      repositorioConfiguracao: {
+        carregarConfiguracaoCompleta: async () => ({
+          vozSelecionada: 'pt-BR-FranciscaNeural',
+          velocidadeReproducao: 1.0,
+          idiomaFiltro: 'TODOS',
+          posicaoMiniPlayer: null,
+          modoPrivacidadeVoz: CONSTANTES_SISTEMA.MODOS_PRIVACIDADE_VOZ.REMOTO_AUTORIZADO,
+          exibirMiniPlayerFlutuante: false,
+          exibirBotaoFlutuanteSelecao: true,
+          modoLeituraContinua: true,
+          estiloHighlight: { ...CONSTANTES_SISTEMA.ESTILO_HIGHLIGHT_PADRAO }
+        })
+      },
+      reprodutorAudio: {
+        reproduzirPacote: vi.fn(),
+        definirVelocidade: vi.fn(),
+        pausar: vi.fn(),
+        retomar: vi.fn(),
+        pararELimpar: vi.fn()
+      },
+      motorFallback: motorFallbackMock,
+      gerenciadorHighlight: {
+        aplicarEstiloPersonalizado: vi.fn(),
+        destacarSentenca: vi.fn(),
+        destacarPalavra: vi.fn(),
+        limparDestaquePalavra: vi.fn(),
+        limparTodosOsDestaques: vi.fn()
+      }
+    });
+
+    // Inicia a leitura mesmo com o contexto invalidado: deve comutar de imediato para fallback sem uncaught error
+    await orquestrador.iniciarLeituraDaSelecaoAtual();
+    expect(orquestrador.usandoFallbackLocal).toBe(true);
+    expect(motorFallbackMock.reproduzirSentencaFallback).toHaveBeenCalled();
+    orquestrador.encerrarLeituraCompleta();
+  });
+
   it('deve selecionar vozes distintas ao alternar entre Francisca, Antonio e Thalita no MotorFallbackWebSpeech', () => {
     const { MotorFallbackWebSpeech } = globalThis.ReadForMe;
     const vozesDisponiveisNoNavegador = [

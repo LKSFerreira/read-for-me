@@ -38,12 +38,22 @@
      * @returns {boolean}
      */
     possuiStorageNativo() {
-      return Boolean(
-        typeof chrome !== 'undefined' &&
-          chrome.storage &&
-          chrome.storage.local &&
-          typeof chrome.storage.local.get === 'function'
-      );
+      try {
+        if (
+          typeof chrome === 'undefined' ||
+          !chrome.storage ||
+          !chrome.storage.local ||
+          typeof chrome.storage.local.get !== 'function'
+        ) {
+          return false;
+        }
+        if (chrome.runtime && chrome.runtime.id !== undefined) {
+          return Boolean(chrome.runtime.id);
+        }
+        return true;
+      } catch {
+        return false;
+      }
     }
 
     /**
