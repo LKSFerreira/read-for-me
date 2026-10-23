@@ -95,7 +95,7 @@
               Ocultar
             </button>
             <button type="button" class="botao-acao-cabecalho" data-acao="abrir-configuracoes" title="Abrir configurações e seleção de voz">
-              ⚙ Configurações
+              Configurações
             </button>
           </div>
         </header>

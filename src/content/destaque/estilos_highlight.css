@@ -1,11 +1,11 @@
 /* Estilos base neutros para a CSS Custom Highlight API (sobrescritos dinamicamente pelas preferências do usuário) */
 ::highlight(leitura-frase-ativa) {
-  background-color: rgba(100, 116, 139, 0.14);
+  background-color: rgba(100, 116, 139, 0.22);
   color: inherit;
 }
 
 ::highlight(leitura-palavra-ativa) {
-  background-color: #e2e8f0;
+  background-color: #cbd5e1;
   color: #0f172a;
   text-decoration: underline;
   text-decoration-color: #64748b;

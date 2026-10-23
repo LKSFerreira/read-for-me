@@ -16,7 +16,7 @@
   function converterHexParaRgba(corHex, opacidade) {
     const alfa = Number.isFinite(Number(opacidade))
       ? Math.max(0, Math.min(1, Number(opacidade)))
-      : 0.14;
+      : 0.22;
     if (typeof corHex !== 'string' || !corHex.startsWith('#')) {
       return `rgba(100, 116, 139, ${alfa})`;
     }
@@ -91,7 +91,7 @@
         : 'transparent';
 
       const fundoPalavra = this.estiloAtual.destacarPalavra
-        ? this.estiloAtual.corFundoPalavra || '#e2e8f0'
+        ? this.estiloAtual.corFundoPalavra || '#cbd5e1'
         : 'transparent';
 
       const corTextoPalavra =

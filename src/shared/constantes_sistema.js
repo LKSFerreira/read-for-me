@@ -9,9 +9,9 @@
     temaPreset: 'ardosia-suave',
     destacarFrase: true,
     corFrase: '#64748b',
-    opacidadeFrase: 0.16,
+    opacidadeFrase: 0.22,
     destacarPalavra: true,
-    corFundoPalavra: '#e2e8f0',
+    corFundoPalavra: '#cbd5e1',
     corTextoPalavra: '#0f172a',
     sublinharPalavra: true
   });
@@ -21,9 +21,9 @@
       nomeExibicao: 'Ardósia Neutro',
       destacarFrase: true,
       corFrase: '#64748b',
-      opacidadeFrase: 0.16,
+      opacidadeFrase: 0.22,
       destacarPalavra: true,
-      corFundoPalavra: '#e2e8f0',
+      corFundoPalavra: '#cbd5e1',
       corTextoPalavra: '#0f172a',
       sublinharPalavra: true
     }),

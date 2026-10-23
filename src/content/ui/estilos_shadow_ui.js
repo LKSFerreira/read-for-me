@@ -17,6 +17,7 @@
 
     *, *::before, *::after {
       box-sizing: border-box;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Inter, sans-serif;
     }
 
     /* Botão Flutuante Discreto de Seleção */
@@ -67,7 +68,7 @@
     .mini-player-container {
       position: fixed;
       z-index: 2147483647;
-      width: 380px;
+      width: 420px;
       max-width: calc(100vw - 24px);
       border-radius: 14px;
       background: rgba(11, 15, 23, 0.94);
@@ -76,6 +77,7 @@
       border: 1px solid rgba(255, 255, 255, 0.14);
       box-shadow: 0 24px 48px -12px rgba(0, 0, 0, 0.78), 0 0 0 1px rgba(255, 85, 0, 0.22);
       color: #f4f0ea;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Inter, sans-serif;
       padding: 10px 14px;
       pointer-events: auto;
       display: flex;
@@ -164,6 +166,7 @@
       display: flex;
       align-items: center;
       gap: 6px;
+      flex-shrink: 0;
     }
 
     .botao-acao-cabecalho,
@@ -179,6 +182,8 @@
       display: inline-flex;
       align-items: center;
       gap: 4px;
+      white-space: nowrap;
+      flex-shrink: 0;
       transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
     }
 
@@ -201,6 +206,7 @@
       display: flex;
       align-items: center;
       gap: 6px;
+      flex-shrink: 0;
     }
 
     .botao-controle {
@@ -253,24 +259,27 @@
       display: flex;
       align-items: center;
       gap: 6px;
+      flex-shrink: 0;
     }
 
     .rotulo-compacto {
       font-size: 11px;
       color: #94a3b8;
       font-weight: 500;
+      white-space: nowrap;
     }
 
     .slider-velocidade-player {
       -webkit-appearance: none;
       appearance: none;
-      width: 96px;
+      width: 82px;
       height: 6px;
       border-radius: 999px;
       background: rgba(24, 32, 48, 0.95);
       border: 1px solid rgba(255, 255, 255, 0.14);
       outline: none;
       cursor: pointer;
+      flex-shrink: 0;
     }
 
     .slider-velocidade-player::-webkit-slider-thumb {
@@ -295,6 +304,7 @@
       color: #f4f0ea;
       font-variant-numeric: tabular-nums;
       text-align: center;
+      flex-shrink: 0;
     }
 
 
