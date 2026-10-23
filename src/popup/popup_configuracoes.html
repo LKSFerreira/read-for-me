@@ -25,16 +25,6 @@
         <h1 class="titulo-marca">Read For Me</h1>
       </div>
 
-      <!-- Barra discreta exibida apenas quando há leitura ativa na aba -->
-      <div id="barra-leitura-ativa" class="barra-leitura-ativa" hidden>
-        <span id="badge-estado-aba" class="badge-estado" data-ativo="false">Inativo</span>
-        <button id="botao-iniciar-ou-pausar" type="button" class="botao-icone-status" title="Pausar ou retomar">
-          <span id="icone-acao-principal">⏸</span>
-        </button>
-        <button id="botao-aba-parar" type="button" class="botao-icone-status perigo" title="Parar leitura">
-          ⏹
-        </button>
-      </div>
     </header>
 
     <!-- Navegação por Categorias (Abas) -->
@@ -42,13 +32,13 @@
       <button
         type="button"
         role="tab"
-        id="aba-btn-voz"
+        id="aba-btn-player"
         class="botao-aba"
-        data-aba-alvo="voz"
+        data-aba-alvo="player"
         aria-selected="true"
-        aria-controls="painel-aba-voz"
+        aria-controls="painel-aba-player"
       >
-        Voz
+        Player
       </button>
       <button
         type="button"
@@ -74,35 +64,83 @@
       </button>
     </nav>
 
-    <!-- CATEGORIA 1: VOZ -->
+    <!-- CATEGORIA 1: PLAYER -->
     <section
-      id="painel-aba-voz"
+      id="painel-aba-player"
       role="tabpanel"
-      aria-labelledby="aba-btn-voz"
+      aria-labelledby="aba-btn-player"
       class="painel-categoria"
-      data-painel-aba="voz"
+      data-painel-aba="player"
     >
+      <!-- Cartão de Status e Frase Ativa -->
       <div class="cartao-grupo">
-        <div class="campo-formulario">
-          <label for="filtro-idioma">Idioma</label>
-          <select id="filtro-idioma" class="controle-select">
-            <option value="TODOS">Todos os idiomas</option>
-            <option value="pt-BR">Português (Brasil)</option>
-            <option value="en-US">Inglês (EUA)</option>
-          </select>
+        <div class="linha-status-player">
+          <span id="badge-estado-player" class="badge-status-player" data-estado="inativo">
+            <span class="ponto-pulsante-player"></span>
+            <span id="texto-estado-player">Inativo</span>
+          </span>
+          <span id="contador-sentencas-player" class="contador-player">Nenhuma leitura ativa</span>
         </div>
 
-        <div class="campo-formulario">
-          <div class="linha-rotulo-acao">
-            <label for="seletor-voz">Voz</label>
-            <button id="botao-ouvir-previa" type="button" class="botao-previa">
-              🔊 Ouvir amostra
-            </button>
-          </div>
-          <select id="seletor-voz" class="controle-select"></select>
+        <div id="caixa-sentenca-player" class="caixa-sentenca-ativa">
+          <p id="texto-sentenca-player" class="texto-sentenca-player">Selecione um texto na página ou clique no botão de reprodução abaixo para iniciar.</p>
         </div>
       </div>
 
+      <!-- Cartão de Controles de Reprodução -->
+      <div class="cartao-grupo">
+        <div class="controles-transporte-player">
+          <button
+            type="button"
+            id="btn-player-anterior"
+            class="botao-transporte"
+            title="Frase anterior"
+            aria-label="Frase anterior"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="19 20 9 12 19 4 19 20"></polygon>
+              <line x1="5" y1="19" x2="5" y2="5"></line>
+            </svg>
+          </button>
+
+          <button
+            type="button"
+            id="btn-player-play-pause"
+            class="botao-transporte destaque-play"
+            title="Iniciar ou pausar leitura"
+            aria-label="Iniciar ou pausar"
+          >
+            <span id="icone-play-pause-player">▶</span>
+          </button>
+
+          <button
+            type="button"
+            id="btn-player-proxima"
+            class="botao-transporte"
+            title="Próxima frase"
+            aria-label="Próxima frase"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="5 4 15 12 5 20 5 4"></polygon>
+              <line x1="19" y1="5" x2="19" y2="19"></line>
+            </svg>
+          </button>
+
+          <button
+            type="button"
+            id="btn-player-parar"
+            class="botao-transporte botao-parar"
+            title="Parar leitura"
+            aria-label="Parar leitura"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+              <rect x="5" y="5" width="14" height="14" rx="2"></rect>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Cartão de Velocidade -->
       <div class="cartao-grupo">
         <div class="campo-formulario">
           <div class="linha-rotulo-acao">
@@ -125,14 +163,6 @@
             <span>1.50x</span>
             <span>2.00x</span>
           </div>
-        </div>
-
-        <div class="campo-formulario">
-          <label for="modo-motor-voz">Motor de síntese</label>
-          <select id="modo-motor-voz" class="controle-select">
-            <option value="REMOTO_AUTORIZADO">Microsoft Natural (Online)</option>
-            <option value="SOMENTE_LOCAL">Voz do Sistema (Offline)</option>
-          </select>
         </div>
       </div>
     </section>
@@ -173,8 +203,8 @@
             <input id="cor-frase" type="color" value="#64748b" />
           </div>
           <div class="campo-slider">
-            <label for="opacidade-frase">Opacidade (<span id="valor-opacidade-frase">14%</span>)</label>
-            <input id="opacidade-frase" type="range" min="0.05" max="0.45" step="0.01" value="0.14" />
+            <label for="opacidade-frase">Opacidade (<span id="valor-opacidade-frase">22%</span>)</label>
+            <input id="opacidade-frase" type="range" min="0.05" max="0.45" step="0.01" value="0.22" />
           </div>
         </div>
 
@@ -188,7 +218,7 @@
         <div class="grade-cores tres-colunas">
           <div class="campo-cor">
             <label for="cor-fundo-palavra">Fundo</label>
-            <input id="cor-fundo-palavra" type="color" value="#e2e8f0" />
+            <input id="cor-fundo-palavra" type="color" value="#cbd5e1" />
           </div>
           <div class="campo-cor">
             <label for="cor-texto-palavra">Texto</label>
@@ -211,7 +241,45 @@
       data-painel-aba="preferencias"
       hidden
     >
+      <!-- Configurações de Voz e Idioma (Movidas para a aba Opções) -->
+      <div class="cartao-grupo">
+        <div class="cabecalho-secao-opcoes">
+          <span class="titulo-secao-opcoes">Voz e Idioma</span>
+        </div>
+
+        <div class="campo-formulario">
+          <label for="filtro-idioma">Idioma</label>
+          <select id="filtro-idioma" class="controle-select">
+            <option value="TODOS">Todos os idiomas</option>
+            <option value="pt-BR">Português (Brasil)</option>
+            <option value="en-US">Inglês (EUA)</option>
+          </select>
+        </div>
+
+        <div class="campo-formulario">
+          <div class="linha-rotulo-acao">
+            <label for="seletor-voz">Voz</label>
+            <button id="botao-ouvir-previa" type="button" class="botao-previa">
+              🔊 Ouvir amostra
+            </button>
+          </div>
+          <select id="seletor-voz" class="controle-select"></select>
+        </div>
+
+        <div class="campo-formulario">
+          <label for="modo-motor-voz">Motor de síntese</label>
+          <select id="modo-motor-voz" class="controle-select">
+            <option value="REMOTO_AUTORIZADO">Microsoft Natural (Online)</option>
+            <option value="SOMENTE_LOCAL">Voz do Sistema (Offline)</option>
+          </select>
+        </div>
+      </div>
+
       <div class="cartao-grupo lista-opcoes">
+        <div class="cabecalho-secao-opcoes">
+          <span class="titulo-secao-opcoes">Preferências do Leitor</span>
+        </div>
+
         <label class="linha-switch opcao-item">
           <div>
             <span class="rotulo-switch-principal">Leitura contínua</span>

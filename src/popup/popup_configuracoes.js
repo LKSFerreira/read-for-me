@@ -56,11 +56,16 @@
      * @returns {void}
      */
     capturarReferenciasDom() {
-      this.barraLeituraAtiva = document.getElementById('barra-leitura-ativa');
-      this.badgeEstadoAba = document.getElementById('badge-estado-aba');
-      this.botaoIniciarOuPausar = document.getElementById('botao-iniciar-ou-pausar');
-      this.iconeAcaoPrincipal = document.getElementById('icone-acao-principal');
-      this.botaoAbaParar = document.getElementById('botao-aba-parar');
+      this.badgeEstadoPlayer = document.getElementById('badge-estado-player');
+      this.textoEstadoPlayer = document.getElementById('texto-estado-player');
+      this.contadorSentencasPlayer = document.getElementById('contador-sentencas-player');
+      this.caixaSentencaPlayer = document.getElementById('caixa-sentenca-player');
+      this.textoSentencaPlayer = document.getElementById('texto-sentenca-player');
+      this.botaoPlayerAnterior = document.getElementById('btn-player-anterior');
+      this.botaoPlayerPlayPause = document.getElementById('btn-player-play-pause');
+      this.iconePlayPausePlayer = document.getElementById('icone-play-pause-player');
+      this.botaoPlayerProxima = document.getElementById('btn-player-proxima');
+      this.botaoPlayerParar = document.getElementById('btn-player-parar');
 
       this.botoesAbaCategoria = Array.from(document.querySelectorAll('.botao-aba'));
       this.paineisCategoria = Array.from(document.querySelectorAll('.painel-categoria'));
@@ -202,7 +207,7 @@
       }
 
       this.previaPalavraHighlight.style.backgroundColor =
-        estilo.corFundoPalavra || '#e2e8f0';
+        estilo.corFundoPalavra || '#cbd5e1';
       this.previaPalavraHighlight.style.color =
         estilo.corFundoPalavra === 'transparent'
           ? 'inherit'
@@ -398,7 +403,7 @@
       }
 
       const salvarMudancaCustomizadaHighlight = async () => {
-        const opacidadeNumerica = parseFloat(this.inputOpacidadeFrase.value) || 0.14;
+        const opacidadeNumerica = parseFloat(this.inputOpacidadeFrase.value) || 0.22;
         this.labelValorOpacidadeFrase.textContent = `${Math.round(opacidadeNumerica * 100)}%`;
 
         const novoEstilo = {
@@ -446,14 +451,26 @@
         await this.repositorioConfiguracao.salvarExibirMiniPlayerFlutuante(valor);
       });
 
-      if (this.botaoIniciarOuPausar) {
-        this.botaoIniciarOuPausar.addEventListener('click', () => {
+      if (this.botaoPlayerAnterior) {
+        this.botaoPlayerAnterior.addEventListener('click', () => {
+          this.enviarComandoParaAbaAtiva('ANTERIOR');
+        });
+      }
+
+      if (this.botaoPlayerPlayPause) {
+        this.botaoPlayerPlayPause.addEventListener('click', () => {
           this.enviarComandoParaAbaAtiva('ALTERNAR_PAUSA');
         });
       }
 
-      if (this.botaoAbaParar) {
-        this.botaoAbaParar.addEventListener('click', () => {
+      if (this.botaoPlayerProxima) {
+        this.botaoPlayerProxima.addEventListener('click', () => {
+          this.enviarComandoParaAbaAtiva('PROXIMA');
+        });
+      }
+
+      if (this.botaoPlayerParar) {
+        this.botaoPlayerParar.addEventListener('click', () => {
           this.enviarComandoParaAbaAtiva('PARAR');
         });
       }
@@ -698,46 +715,65 @@
     }
 
     /**
-     * Reflete o estado de leitura da aba na barra discreta do cabeçalho.
+     * Reflete o estado de leitura da aba nos controles e visualizadores da aba Player.
      * @param {Object} estado
      * @returns {void}
      */
     atualizarInterfaceEstadoAba(estado) {
       const {
-        estadoAtual,
+        estadoAtual = 'INATIVO',
         indiceSentencaAtual = 0,
-        totalSentencas = 0
+        totalSentencas = 0,
+        textoSentencaAtual = ''
       } = estado;
 
       const leituraAtiva = estadoAtual !== 'INATIVO';
-      if (this.barraLeituraAtiva) {
-        this.barraLeituraAtiva.hidden = !leituraAtiva;
-      }
-      if (this.badgeEstadoAba) {
-        this.badgeEstadoAba.setAttribute('data-ativo', leituraAtiva ? 'true' : 'false');
+
+      if (this.badgeEstadoPlayer) {
+        if (!leituraAtiva) {
+          this.badgeEstadoPlayer.setAttribute('data-estado', 'inativo');
+        } else if (estadoAtual === 'PAUSADO') {
+          this.badgeEstadoPlayer.setAttribute('data-estado', 'pausado');
+        } else {
+          this.badgeEstadoPlayer.setAttribute('data-estado', 'lendo');
+        }
       }
 
-      if (!leituraAtiva) {
-        if (this.badgeEstadoAba) {
-          this.badgeEstadoAba.textContent = 'Inativo';
+      if (this.textoEstadoPlayer) {
+        if (!leituraAtiva) {
+          this.textoEstadoPlayer.textContent = 'Inativo';
+        } else if (estadoAtual === 'PAUSADO') {
+          this.textoEstadoPlayer.textContent = 'Pausado';
+        } else if (estadoAtual === 'BUFFERIZANDO') {
+          this.textoEstadoPlayer.textContent = 'Carregando...';
+        } else {
+          this.textoEstadoPlayer.textContent = 'Lendo';
         }
-        return;
       }
 
-      const fraseHumana = Math.min(totalSentencas, indiceSentencaAtual + 1);
-      if (estadoAtual === 'REPRODUZINDO' || estadoAtual === 'BUFFERIZANDO') {
-        if (this.badgeEstadoAba) {
-          this.badgeEstadoAba.textContent = `Lendo ${fraseHumana}/${totalSentencas}`;
+      if (this.contadorSentencasPlayer) {
+        if (!leituraAtiva || totalSentencas === 0) {
+          this.contadorSentencasPlayer.textContent = 'Nenhuma leitura ativa';
+        } else {
+          const fraseHumana = Math.min(totalSentencas, indiceSentencaAtual + 1);
+          this.contadorSentencasPlayer.textContent = `Frase ${fraseHumana} de ${totalSentencas}`;
         }
-        if (this.iconeAcaoPrincipal) {
-          this.iconeAcaoPrincipal.textContent = '⏸';
+      }
+
+      if (this.textoSentencaPlayer) {
+        if (!leituraAtiva) {
+          this.textoSentencaPlayer.textContent =
+            'Selecione um texto na página ou clique no botão de reprodução abaixo para iniciar.';
+        } else if (textoSentencaAtual && textoSentencaAtual.trim().length > 0) {
+          this.textoSentencaPlayer.textContent = textoSentencaAtual;
         }
-      } else if (estadoAtual === 'PAUSADO') {
-        if (this.badgeEstadoAba) {
-          this.badgeEstadoAba.textContent = `Pausado ${fraseHumana}/${totalSentencas}`;
-        }
-        if (this.iconeAcaoPrincipal) {
-          this.iconeAcaoPrincipal.textContent = '▶';
+      }
+
+      if (this.iconePlayPausePlayer) {
+        if (estadoAtual === 'REPRODUZINDO' || estadoAtual === 'BUFFERIZANDO') {
+          this.iconePlayPausePlayer.textContent = '⏸';
+        } else {
+          this.iconePlayPausePlayer.textContent = '▶';
         }
       }
     }
