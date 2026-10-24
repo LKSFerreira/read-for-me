@@ -35,7 +35,7 @@ export class ControladorBackground {
 
     if (chrome.contextMenus && chrome.contextMenus.onClicked) {
       chrome.contextMenus.onClicked.addListener((infoClique, abaAlvo) => {
-        if (!abaAlvo || typeof abaAlvo.id !== 'number') {
+        if (!abaAlvo || typeof abaAlvo.id !== 'number' || abaAlvo.id < 0) {
           return;
         }
 
@@ -93,7 +93,11 @@ export class ControladorBackground {
             currentWindow: true
           });
           const primeiraAba = abasAtivas[0];
-          if (primeiraAba && typeof primeiraAba.id === 'number') {
+          if (
+            primeiraAba &&
+            typeof primeiraAba.id === 'number' &&
+            primeiraAba.id >= 0
+          ) {
             chrome.tabs
               .sendMessage(primeiraAba.id, {
                 tipoMensagem: CONSTANTES_SISTEMA.TIPOS_MENSAGEM.ALTERNAR_PAUSA_ATALHO
@@ -185,6 +189,9 @@ export class ControladorBackground {
               logsDiagnostico: (erro && erro.logsDiagnostico) || []
             });
           });
+        return true;
+      }
+
       if (mensagem.tipoMensagem === CONSTANTES_SISTEMA.TIPOS_MENSAGEM.ABRIR_CONFIGURACOES) {
         if (chrome.runtime && typeof chrome.runtime.openOptionsPage === 'function') {
           chrome.runtime.openOptionsPage();
